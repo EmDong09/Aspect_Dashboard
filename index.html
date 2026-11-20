@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aspect</title>
+  <meta name="description" content="Aspect: an internal dashboard for testing, grading and comparing After Effects motion skills for an AI agent harness.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/icons.js" defer></script>
+  <script src="js/data.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#view">Skip to content</a>
+  <div class="app" id="app">
+    <aside class="sidebar" aria-label="Primary">
+      <a class="logo" href="#/overview" aria-label="Aspect, overview">
+        <img src="assets/aspect-mark.svg" alt="" width="28" height="22">
+        <span>aspect</span>
+      </a>
+      <nav aria-label="Main navigation" style="display:contents">
+        <a class="nav-item" href="#/overview" data-nav="overview">Overview</a>
+        <a class="nav-item" href="#/upload" data-nav="upload">Upload test</a>
+        <a class="nav-item" href="#/skills" data-nav="skills">Evaluating skills</a>
+        <a class="nav-item" href="#/archive" data-nav="archive">Video archive</a>
+      </nav>
+      <div class="sidebar-flex"></div>
+      <div class="token-spend">
+        <p class="label">Token spend this month</p>
+        <p class="value">$xx of $5,000</p>
+        <div class="token-track" role="img" aria-label="Token spend progress, placeholder"><span></span></div>
+      </div>
+    </aside>
+    <main class="main" id="view" tabindex="-1"></main>
+  </div>
+  <div class="modal-root" id="modal-root" hidden></div>
+  <div class="toast-region" id="toasts" role="status" aria-live="polite"></div>
+  <input type="file" id="file-video" accept="video/mp4,video/quicktime,.mp4,.mov" hidden>
+  <input type="file" id="file-aep" accept=".aep" hidden>
+</body>
+</html>
