@@ -2,7 +2,7 @@
 
 A clickable front-end prototype of **Aspect**, an internal benchmarking dashboard for testing, grading and comparing the After Effects motion-design skills built for an AI agent harness.
 
-It is built from the *Aspect Dashboard* Figma file (page "V1 layout"). Colors, type, spacing, radii and icons come straight from that file's variables and layers.
+It is built from the *Aspect Dashboard* Figma file (page "Most recent: V1 layout"). Colors, type, spacing, radii and icons come straight from that file's variables and layers.
 
 ## Run it
 
@@ -22,16 +22,15 @@ Opening `index.html` directly from disk also works. The only external request is
 | `#/overview` | 01 · Overview | Day/Week/Month/Year/All toggle, KPI cards, 10 most recent runs. Each row opens the run detail. |
 | `#/runs` | 01b · All runs | Search, Skill/Level/Quality/Date filters, sort, pagination, Export CSV of the filtered rows. |
 | `#/runs/:id` | 01c · Run detail | Run modal with a placeholder player, prompt, benchmark results and "Open in archive". |
-| `#/upload` | 02 to 05b | Four-step flow: **Upload** (multi-select skills with add-new, level, token cost, prompt, drag-and-drop video, .aep attach), **Automated checks**, **Quality check**, **Feedback** (optional suggested prompt, edit, copy, save). |
-| `#/skills` | 06 to 06d | Skills table with descriptions, best run per skill with "View details" hover, **Edit skills** (rename, remove with undo, add, save, cancel). |
+| `#/upload` | 02, 02b, 03 | Two steps. **Enter run**: run details (multi-select skills with add-new, level, token cost, prompt, drag-and-drop video) and benchmark results from local testing (Complete, Editable, Fidelity %, Quality / 5). **Review & upload**: run info and the four results as cards, then upload. |
+| `#/skills` | 06b, 06d | Skills table with descriptions, **Edit skills** (rename, remove with undo, add, save, cancel). |
 | `#/archive` | 07 to 07g | Video grid, multi-skill filter with search, level filter with "Best runs only", tag tooltips, hover state, preview modal, delete with confirmation. |
 | `#/deleted` | 08 · Recently deleted | Days-left countdown (red at 3 days or fewer), restore, delete forever, delete all. |
 
 ### Behavior worth knowing
 
-- **Quality check picks its mode.** If the uploaded skill(s) and level already have a best run, you compare the new run against it ("Keep current best" or "New run is better"). Otherwise you get the first-run rubric with a star override.
-- **Saving a run** adds it to Overview, All runs and the archive. If it wins, it takes the **Best** tag from the previous best.
-- **The .aep file controls the editability check.** Without the attached project, Automated checks shows Editability as "Not checked".
+- **Benchmark results are entered by hand** from local testing. Skill(s), Fidelity (0–100) and Quality (0–5) are required; the form flags anything missing or out of range. Runs at level and the upload date fill in automatically.
+- **Uploading a run** adds it to Overview, All runs and the archive with the values you entered. New runs are not tagged **Best**; the design no longer has a step for choosing one.
 - **Removing a skill** moves runs tagged *only* with that skill to Recently deleted. This matches the warning in the Figma file. **Renaming a skill** updates every run that uses it.
 - **Escape** closes menus and dialogs. Focus stays inside open dialogs, and every control works from the keyboard.
 
@@ -39,7 +38,6 @@ Opening `index.html` directly from disk also works. The only external request is
 
 - **Benchmark numbers** keep the Figma placeholders: `xx`, `xx%`, `x.x / 5`, `xxK`, `$x.xx`. They mark where real results will appear.
 - **Skill names, file names, levels and dates** mirror the Figma screens. Prompts and feedback beyond the lower-third example are sample text.
-- **Automated check results, the rubric and the suggested prompt** are fixed sample content (the lower-third example from Figma). They don't change with what you upload, because there is no backend.
 - **Videos are gray placeholders.** Play animates the progress bar over the 6-second duration. Download shows a notice.
 - **State lives in memory** and resets on reload.
 

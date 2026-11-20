@@ -11,9 +11,8 @@
 
   function freshUpload() {
     return {
-      step: 1, skills: [], skillQuery: '', level: 'Single', tokens: '', prompt: '',
-      video: null, aep: null, error: '', rating: 4, pick: null, liked: '', change: '',
-      suggested: false, editingPrompt: false, improved: D.improvedPrompt, startedAt: null
+      step: 1, skills: [], skillQuery: '', level: 'Single', tokens: '', prompt: '', video: null,
+      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', errors: {}
     };
   }
 
@@ -373,11 +372,6 @@
         : `<div class="empty"><b>${total ? 'No deleted videos match these filters' : 'Nothing here'}</b>${total ? 'Try another skill or level.' : 'Videos you delete from the archive will appear here for 30 days.'}</div>`}`;
   }
 
-  function bestRunFor(name) {
-    const runs = activeRuns().filter(r => r.skills.length === 1 && r.skills[0] === name);
-    return runs.find(r => r.best) || runs.sort((a, b) => b.version - a.version)[0];
-  }
-
   function viewSkills() {
     const editing = !!state.skillsEdit;
     const head = ['Skill', 'Tests covering', 'Levels covered', 'Best quality', 'Avg cost / run', 'Last run'];
@@ -404,7 +398,6 @@
           <td style="text-align:right"><button type="button" class="icon-btn" data-action="remove-skill" data-index="${i}" aria-label="Remove ${esc(row.name || 'new skill')}">${ic('trash', 16)}</button></td></tr>`;
       }).join('');
     }
-    const cards = state.skills.map(s => ({ s, r: bestRunFor(s.name) })).filter(x => x.r);
     return `<header class="page-header"><h1 class="page-title">Evaluating skills</h1></header>
       <section class="card table-card" aria-labelledby="all-skills">
         <div class="table-card-header" style="padding:16px 20px">
@@ -420,35 +413,19 @@
           <tbody>${body}</tbody></table></div>
         ${editing ? `<div class="add-row"><button type="button" class="link-btn" data-action="add-skill">${ic('plus', 14)} Add skill</button></div>` : ''}
       </section>
-      ${editing ? `<div class="alert" role="note">${ic('info', 16)} Removing a skill moves every test run tagged only with that skill to Recently deleted. Runs that also include other skills stay in the archive.</div>` : ''}
-      <section class="${editing ? 'is-dimmed' : ''}" aria-labelledby="best-title" ${editing ? 'aria-hidden="true"' : ''}>
-        <div class="section-head" style="margin-bottom:${editing ? 4 : 16}px"><h2 class="section-title" id="best-title">Best run per skill</h2><span class="spacer"></span>
-          <a class="link-btn" href="#/archive">View video archive ${ic('arrow', 14)}</a></div>
-        ${editing ? '<p class="section-sub" style="margin-bottom:16px">The highest-ranked run for each skill so far</p>' : ''}
-        <div class="video-grid cols-3">${cards.map(({ s, r }) => `<article class="vcard tall has-hover">
-          <div class="vcard-thumb"><span class="tl">${levelTag(r.level)}</span><span class="tr">${bestTag()}</span>
-            <span class="play-btn" aria-hidden="true">${ic('play', 18)}</span><span class="duration">${r.duration}</span></div>
-          <div class="vcard-body" style="gap:12px">
-            <div class="vcard-title-row"><h3 class="vcard-title">${esc(s.name)}</h3><span class="vcard-version">v${r.version}</span></div>
-            <div class="stats3"><div class="stat"><p class="k">Quality</p><p class="v">${esc(r.quality)}</p></div>
-              <div class="stat"><p class="k">Fidelity</p><p class="v">${esc(r.fidelity)}</p></div>
-              <div class="stat"><p class="k">Tokens</p><p class="v">${esc(r.tokens)}</p></div></div>
-            <div class="vcard-foot"><span>Best of xx runs</span><span class="link-btn">View run</span></div>
-          </div>
-          <a class="vcard-open" href="#/skills/${r.id}" aria-label="View best run for ${esc(s.name)}" ${editing ? 'tabindex="-1"' : ''}></a>
-          <div class="vcard-hover" aria-hidden="true"><span>View details</span></div>
-        </article>`).join('')}</div>
-      </section>`;
+      ${editing ? `<div class="alert" role="note">${ic('info', 16)} Removing a skill moves every test run tagged only with that skill to Recently deleted. Runs that also include other skills stay in the archive.</div>` : ''}`;
   }
 
   /* ---------------------------------------------------------- upload flow */
+  // Two steps, matching Figma: 02 · Upload test run (Enter run) and
+  // 03 · Review & upload. Benchmark results come from local testing.
 
-  const STEPS = ['Upload', 'Automated checks', 'Quality check', 'Feedback'];
+  const STEPS = ['Enter run', 'Review & upload'];
   function stepper(step) {
     return `<ol class="stepper" aria-label="Upload progress" style="list-style:none;margin:0;padding:0">${STEPS.map((label, i) => {
       const n = i + 1;
       const cls = n < step ? 'is-done' : n === step ? 'is-current' : '';
-      const dot = n < step ? ic('check', 12) : n;
+      const dot = n < step ? ic('check', 14) : n;
       const inner = `<span class="step-dot">${dot}</span><span class="step-label">${label}</span>`;
       return (i ? `<li aria-hidden="true" style="display:contents"><span class="step-line ${n <= step ? 'is-done' : ''}"></span></li>` : '') +
         `<li style="display:contents">${n < step
@@ -462,29 +439,45 @@
         <button type="button" class="btn btn-secondary btn-sm btn-muted" data-action="up-cancel">${ic('x', 14)} Cancel</button></div></header>`;
   }
   const fmtBytes = b => b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
+  const toNumber = v => { const s = String(v).replace(/[^\d.]/g, ''); return s === '' ? NaN : Number(s); };
   function tokensLabel(u) {
-    const n = Number(String(u.tokens).replace(/[^\d.]/g, ''));
+    const n = toNumber(u.tokens);
     return n ? (n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'K' : String(n)) : 'xxK';
   }
-  function uploadVideoName(u) {
-    return u.video ? u.video.name : 'test_run.mp4';
-  }
-  function compareTarget(u) {
-    const key = u.skills.slice().sort().join('|');
-    return activeRuns().find(r => r.best && r.level === u.level && r.skills.slice().sort().join('|') === key);
-  }
+  const fidelityValue = u => toNumber(u.fidelity);
+  const qualityValue = u => toNumber(u.quality);
+  function uploadVideoName(u) { return u.video ? u.video.name : 'test_run.mp4'; }
   function nextVersion(u) {
     const key = u.skills.slice().sort().join('|');
     const vs = state.runs.filter(r => r.skills.slice().sort().join('|') === key).map(r => r.version);
     return vs.length ? Math.max(...vs) + 1 : 1;
   }
+  function validateUpload(u) {
+    const errors = {};
+    if (!u.skills.length) errors.skills = 'Pick at least one skill this run tests.';
+    const f = fidelityValue(u);
+    if (isNaN(f)) errors.fidelity = 'Enter the fidelity score from local testing.';
+    else if (f < 0 || f > 100) errors.fidelity = 'Fidelity is a percentage from 0 to 100.';
+    const q = qualityValue(u);
+    if (isNaN(q)) errors.quality = 'Enter the quality score from local testing.';
+    else if (q < 0 || q > 5) errors.quality = 'Quality is a score from 0 to 5.';
+    return errors;
+  }
 
   function viewUpload() {
     const u = state.upload;
-    return [null, uploadStep1, uploadStep2, uploadStep3, uploadStep4][u.step](u);
+    return u.step === 2 ? uploadReview(u) : uploadEnter(u);
   }
 
-  function uploadStep1(u) {
+  function segmented(label, id, action, options, current) {
+    return `<div class="segmented" role="radiogroup" aria-labelledby="${id}" style="align-self:flex-start">
+      ${options.map(o => `<button type="button" role="radio" aria-checked="${current === o}" data-action="${action}" data-value="${o}">${o}</button>`).join('')}
+    </div>`;
+  }
+  const fieldError = msg => msg ? `<p class="field-error" role="alert">${esc(msg)}</p>` : '';
+
+  function uploadEnter(u) {
+    const err = u.errors || {};
     const open = state.openMenu === 'up-skills';
     const q = u.skillQuery.trim();
     const names = state.skills.map(s => s.name).concat(u.skills.filter(n => !state.skills.some(s => s.name === n)));
@@ -498,68 +491,82 @@
       <div class="menu-divider"></div>
       <button type="button" class="menu-item lg link-btn" style="font-size:14px" data-action="up-add-skill">${ic('plus', 14)} ${canAdd ? `Add “${esc(q)}”` : 'Add new skill'}</button></div>`;
     const video = u.video
-      ? `<span class="dz-icon">${ic('check', 18)}</span><span class="dz-title">${esc(u.video.name)}</span><span class="dz-sub">${fmtBytes(u.video.size)} · <b>Replace video</b></span>`
-      : `<span class="dz-icon">${ic('upload', 22)}</span><span class="dz-title">Drag &amp; drop your test run video</span><span class="dz-sub">or <b>click to browse</b> · MP4 or MOV</span>`;
-    return uploadHeader('Upload test run') + `<div class="upload-body">
-      <form class="card form-card" id="upload-form" novalidate>
-        <div class="card-header"><h2 class="card-title">Run details</h2></div>
-        <div class="field">
-          <label class="field-label" for="up-skill-q">Skill(s) tested</label>
-          <div class="dd-wrap">
-            <div class="multiselect ${open ? 'is-open' : ''} ${u.error && !u.skills.length ? 'is-invalid' : ''}" data-action="focus-skill-input">
-              ${u.skills.map(n => `<span class="chip">${esc(n)}<button type="button" data-action="up-remove-skill" data-value="${esc(n)}" aria-label="Remove ${esc(n)}">${ic('x', 12)}</button></span>`).join('')}
-              <input id="up-skill-q" data-bind="upload.skillQuery" data-live value="${esc(u.skillQuery)}" placeholder="Search or add a skill…" autocomplete="off" role="combobox" aria-expanded="${open}" aria-autocomplete="list">
-              <button type="button" class="ms-chev" data-action="toggle-menu" data-key="up-skills" aria-label="Show skills">${ic('chevD', 16)}</button>
+      ? `<span class="dz-icon">${ic('check', 16)}</span><span class="dz-title">${esc(u.video.name)}</span><span class="dz-sub">${fmtBytes(u.video.size)} · <b>Replace video</b></span>`
+      : `<span class="dz-icon">${ic('upload', 20)}</span><span class="dz-title">Drag &amp; drop your test run video</span><span class="dz-sub">or <b>click to browse</b> · MP4 or MOV</span>`;
+    const recorded = [
+      ['Skill', 'You enter'], ['Level', 'You enter'], ['Runs at level', 'Automatic'], ['Complete', 'From local testing'],
+      ['Fidelity', 'From local testing'], ['Editable', 'From local testing'], ['Quality', 'From local testing'],
+      ['Token cost', 'You enter'], ['Uploaded', 'Automatic']
+    ];
+    return uploadHeader('Upload test run') + `<form class="upload-body" id="upload-form" novalidate>
+      <div class="col" style="gap:24px">
+        <section class="card form-card" aria-labelledby="rd-title">
+          <div class="card-header"><h2 class="card-title" id="rd-title">Run details</h2></div>
+          <div class="field">
+            <label class="field-label" for="up-skill-q">Skill(s) tested</label>
+            <div class="dd-wrap">
+              <div class="multiselect ${open ? 'is-open' : ''} ${err.skills ? 'is-invalid' : ''}" data-action="focus-skill-input">
+                ${u.skills.map(n => `<span class="chip">${esc(n)}<button type="button" data-action="up-remove-skill" data-value="${esc(n)}" aria-label="Remove ${esc(n)}">${ic('x', 12)}</button></span>`).join('')}
+                <input id="up-skill-q" data-bind="upload.skillQuery" data-live value="${esc(u.skillQuery)}" placeholder="Search or add a skill…" autocomplete="off" role="combobox" aria-expanded="${open}" aria-autocomplete="list" ${err.skills ? 'aria-invalid="true"' : ''}>
+                <button type="button" class="ms-chev" data-action="toggle-menu" data-key="up-skills" aria-label="Show skills">${ic('chevD', 16)}</button>
+              </div>
+              ${open ? menu : ''}
             </div>
-            ${open ? menu : ''}
+            ${fieldError(err.skills)}
           </div>
-          ${u.error && !u.skills.length ? `<p class="field-error" role="alert">${esc(u.error)}</p>` : ''}
-        </div>
-        <div class="field-row">
-          <div class="field"><span class="field-label" id="lvl-label">Level</span>
-            <div class="segmented" role="radiogroup" aria-labelledby="lvl-label" style="align-self:flex-start">
-              ${D.levels.map(l => `<button type="button" role="radio" aria-checked="${u.level === l}" data-action="up-level" data-value="${l}">${l}</button>`).join('')}
-            </div></div>
-          <div class="field"><label class="field-label" for="up-tokens">Token cost</label>
-            <div class="input-affix"><input class="input" id="up-tokens" data-bind="upload.tokens" value="${esc(u.tokens)}" inputmode="numeric" placeholder="e.g. 48,000" autocomplete="off"><span class="affix">tokens</span></div></div>
-        </div>
-        <div class="field"><label class="field-label" for="up-prompt">Original prompt</label>
-          <textarea class="textarea" id="up-prompt" data-bind="upload.prompt" placeholder="Paste the exact prompt you used to generate this run…">${esc(u.prompt)}</textarea>
-          <p class="field-hint">Used to check completion and to suggest an improved prompt later.</p></div>
-        <div class="field"><span class="field-label">Test run video</span>
-          <div class="dropzone" role="button" tabindex="0" data-action="up-browse" id="dropzone" aria-label="Upload test run video, MP4 or MOV">${video}</div></div>
-        <div class="attach-row">${ic('file', 18)}
-          <div><p class="t">After Effects project (.aep)</p><p class="s">${u.aep ? esc(u.aep.name) + ' · ' + fmtBytes(u.aep.size) : 'Needed for the editability check'}</p></div>
-          <span class="spacer"></span>${u.aep ? tag('Attached', 'green') : tag('Recommended', 'red')}
-          <button type="button" class="btn btn-secondary" data-action="up-attach">${u.aep ? 'Replace' : 'Attach'}</button></div>
-        <div class="form-footer"><button type="submit" class="btn btn-primary">Run benchmarks</button></div>
-      </form>
-      <aside class="card next-card" aria-labelledby="next-title">
-        <h2 class="card-title" id="next-title">What happens after you upload</h2>
-        ${[['Completion', 'Checks the video does everything your prompt asked for.'],
-          ['Fidelity', 'Measures the share of requested properties visible in the render.'],
-          ['Editability', 'Confirms named layers, and that text, timing and layers are adjustable in After Effects.'],
-          ['Quality check', 'First run at a level: scored on the default rubric. After that: compared with your current best.']]
-          .map(([t, d], i) => `<div class="next-item"><span class="num-dot">${i + 1}</span><div><p class="t">${t}</p><p class="d">${d}</p></div></div>`).join('')}
-        <div class="callout">${ic('sparkle', 16)}<span>You'll finish by noting what you like and what to change, and we'll suggest an improved prompt.</span></div>
-      </aside></div>`;
+          <div class="field-row">
+            <div class="field"><span class="field-label" id="lvl-label">Level</span>${segmented('Level', 'lvl-label', 'up-level', D.levels, u.level)}</div>
+            <div class="field"><label class="field-label" for="up-tokens">Token cost</label>
+              <div class="input-affix"><input class="input" id="up-tokens" data-bind="upload.tokens" value="${esc(u.tokens)}" inputmode="numeric" placeholder="e.g. 48,000" autocomplete="off"><span class="affix">tokens</span></div></div>
+          </div>
+          <div class="field"><label class="field-label" for="up-prompt">Original prompt</label>
+            <textarea class="textarea" id="up-prompt" data-bind="upload.prompt" placeholder="Paste the exact prompt you used to generate this run…">${esc(u.prompt)}</textarea></div>
+          <div class="field"><span class="field-label">Test run video</span>
+            <div class="dropzone" role="button" tabindex="0" data-action="up-browse" id="dropzone" aria-label="Upload test run video, MP4 or MOV">${video}</div></div>
+        </section>
+        <section class="card form-card" aria-labelledby="br-title">
+          <div class="card-header"><div><h2 class="card-title" id="br-title">Benchmark results</h2><p class="card-sub">Enter the results from your local benchmark run</p></div>
+            <span class="spacer"></span>${tag('From local testing', 'grey')}</div>
+          <div class="field-row">
+            <div class="field"><span class="field-label" id="cmp-label">Complete</span>${segmented('Complete', 'cmp-label', 'up-complete', ['Pass', 'Fail'], u.complete)}
+              <p class="field-hint">Did the run do everything the prompt asked?</p></div>
+            <div class="field"><span class="field-label" id="edit-label">Editable</span>${segmented('Editable', 'edit-label', 'up-editable', ['Yes', 'No'], u.editable)}
+              <p class="field-hint">Are text, timing and layers adjustable in AE?</p></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label class="field-label" for="up-fidelity">Fidelity</label>
+              <div class="input-affix short"><input class="input ${err.fidelity ? 'is-invalid' : ''}" id="up-fidelity" data-bind="upload.fidelity" value="${esc(u.fidelity)}" inputmode="decimal" placeholder="e.g. 85" autocomplete="off" aria-describedby="fid-hint" ${err.fidelity ? 'aria-invalid="true"' : ''}><span class="affix">%</span></div>
+              ${fieldError(err.fidelity)}<p class="field-hint" id="fid-hint">Share of requested properties visible in the render</p></div>
+            <div class="field"><label class="field-label" for="up-quality">Quality</label>
+              <div class="input-affix short"><input class="input ${err.quality ? 'is-invalid' : ''}" id="up-quality" data-bind="upload.quality" value="${esc(u.quality)}" inputmode="decimal" placeholder="e.g. 4.2" autocomplete="off" aria-describedby="q-hint" ${err.quality ? 'aria-invalid="true"' : ''}><span class="affix">/ 5</span></div>
+              ${fieldError(err.quality)}<p class="field-hint" id="q-hint">Score from your local quality check</p></div>
+          </div>
+          <div class="auto-note">${ic('info', 16)}<span>Runs at level and the upload date are filled in automatically.</span></div>
+        </section>
+        <div class="form-footer"><button type="submit" class="btn btn-primary">Review run</button></div>
+      </div>
+      <aside class="card recorded-card" aria-labelledby="rec-title">
+        <div><h2 class="card-title" id="rec-title">What gets recorded</h2><p class="card-sub">These fill the columns in every test run table</p></div>
+        <dl class="recorded-list">${recorded.map(([k, v]) => `<div><dt>${k}</dt><dd class="${v === 'Automatic' ? 'muted' : ''}">${v}</dd></div>`).join('')}</dl>
+      </aside>
+    </form>`;
   }
 
-  function uploadStep2(u) {
-    const c = D.checks;
-    const met = c.completion.filter(x => x[1]).length;
-    const date = new Date(u.startedAt || Date.now());
-    const uploaded = MONTHS[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear() + ' · ' + nowTime(date);
-    return uploadHeader('Automated checks') + `<div class="checks-body">
+  function uploadReview(u) {
+    const f = fidelityValue(u);
+    const q = qualityValue(u);
+    const stars = Math.round(q);
+    return uploadHeader('Review &amp; upload') + `<div class="checks-body">
       <div class="col">
         ${videoBlock('up-video', uploadVideoName(u))}
         <section class="card result-card" aria-labelledby="ri-title">
           <h2 class="card-title" id="ri-title">Run info</h2>
-          <dl class="info-grid">
-            <dt>Skill(s)</dt><dd class="tag-row">${u.skills.map(s => tag(s, 'grey')).join('')}</dd>
-            <dt>Level</dt><dd>${levelTag(u.level)}</dd>
-            <dt>Token cost</dt><dd>${tokensLabel(u)}</dd>
-            <dt>Uploaded</dt><dd>${uploaded}</dd>
+          <dl class="info-grid info-grid-auto">
+            <dt>Skill(s)</dt><dd class="tag-row">${u.skills.map(s => tag(s, 'grey')).join('')}</dd><dd></dd>
+            <dt>Level</dt><dd>${levelTag(u.level)}</dd><dd></dd>
+            <dt>Token cost</dt><dd>${tokensLabel(u)} tokens</dd><dd></dd>
+            <dt>Runs at level</dt><dd>xx</dd><dd class="auto">Automatic</dd>
+            <dt>Uploaded</dt><dd>Today</dd><dd class="auto">Automatic</dd>
           </dl>
           <div class="divider"></div>
           <p class="muted" style="font-weight:500">Original prompt</p>
@@ -567,95 +574,34 @@
         </section>
       </div>
       <div class="col">
-        <section class="card result-card" aria-labelledby="cmp-title">
-          <div class="card-header"><h2 class="card-title" id="cmp-title">Completion</h2><span class="spacer"></span>${tag('Pass · x/x met', 'green')}</div>
-          <p class="desc">Did the video do everything the prompt asked?</p>
-          <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">${c.completion.map(([t, ok]) =>
-            `<li class="check-row"><span class="check-dot ${ok ? '' : 'fail'}">${ic(ok ? 'check' : 'x', ok ? 13 : 12)}</span>${esc(t)}<span class="visually-hidden">${ok ? ', met' : ', not met'}</span></li>`).join('')}</ul>
-          <p class="visually-hidden">${met} of ${c.completion.length} requirements met in this sample.</p>
-        </section>
-        <section class="card result-card" aria-labelledby="fid-title">
-          <div class="card-header"><h2 class="card-title" id="fid-title">Fidelity</h2><span class="spacer"></span>${tag('xx%', 'blue')}</div>
-          <p class="desc">Share of requested properties visible in the render</p>
-          <div class="meter" role="img" aria-label="Fidelity placeholder"><span style="width:29%"></span></div>
-          <div class="tag-row">${c.fidelity.map(([t, ok]) => tag(t, ok ? 'green' : 'red')).join('')}</div>
-        </section>
-        <section class="card result-card" aria-labelledby="edit-title">
-          <div class="card-header"><h2 class="card-title" id="edit-title">Editability</h2><span class="spacer"></span>${u.aep ? tag('Pass', 'green') : tag('Not checked', 'grey')}</div>
-          <p class="desc">${u.aep ? 'Checked against the After Effects project' : 'Attach the .aep project on the Upload step to run this check'}</p>
-          ${u.aep ? `<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">${c.editability.map(t =>
-            `<li class="check-row"><span class="check-dot">${ic('check', 13)}</span>${esc(t)}</li>`).join('')}</ul>`
-            : `<div><button type="button" class="btn btn-secondary btn-sm" data-action="up-goto" data-value="1">${ic('arrowL', 14)} Back to upload</button></div>`}
-        </section>
-        <div class="actions-right"><button type="button" class="btn btn-primary" data-action="up-continue">Continue</button></div>
+        <div class="section-head"><h2 class="card-title">Benchmark results</h2><span class="spacer"></span>${tag('From local testing', 'grey')}</div>
+        <div class="bench-cards">
+          <section class="card bench-card" aria-labelledby="bc-complete">
+            <div class="bench-head"><span class="bench-icon">${ic('target', 18)}</span><h3 id="bc-complete">Complete</h3><span class="spacer"></span>${passTag(u.complete)}</div>
+            <p class="desc">${u.complete === 'Pass' ? 'The run did everything the prompt asked.' : 'The run missed part of what the prompt asked.'}</p>
+          </section>
+          <section class="card bench-card" aria-labelledby="bc-editable">
+            <div class="bench-head"><span class="bench-icon">${ic('layers', 18)}</span><h3 id="bc-editable">Editable</h3><span class="spacer"></span>${passTag(u.editable)}</div>
+            <p class="desc">${u.editable === 'Yes' ? 'Text, timing and layers are adjustable in After Effects.' : 'Text, timing or layers are not adjustable in After Effects.'}</p>
+          </section>
+          <section class="card bench-card" aria-labelledby="bc-fidelity">
+            <div class="bench-head"><span class="bench-icon">${ic('eye', 18)}</span><h3 id="bc-fidelity">Fidelity</h3></div>
+            <p class="bench-value">${f}%</p>
+            <p class="desc">Share of requested properties visible in the render.</p>
+            <div class="meter" role="img" aria-label="Fidelity ${f}%"><span style="width:${Math.min(100, Math.max(0, f))}%"></span></div>
+          </section>
+          <section class="card bench-card" aria-labelledby="bc-quality">
+            <div class="bench-head"><span class="bench-icon">${ic('starOutline', 18)}</span><h3 id="bc-quality">Quality</h3></div>
+            <p class="bench-value">${q} / 5</p>
+            <p class="desc">Score from your local quality check.</p>
+            <span class="stars" role="img" aria-label="${stars} of 5 stars">${Array.from({ length: 5 }, (_, i) => ic(i < stars ? 'star' : 'starOutline', 18)).join('')}</span>
+          </section>
+        </div>
+        <div class="actions-right">
+          <button type="button" class="btn btn-secondary" data-action="up-goto" data-value="1">Back to edit</button>
+          <button type="button" class="btn btn-primary" data-action="up-save">Upload run</button>
+        </div>
       </div></div>`;
-  }
-
-  function stars(n, cls) {
-    return Array.from({ length: 5 }, (_, i) => ic(i < n ? 'star' : 'starOutline', 22)).join('');
-  }
-
-  function uploadStep3(u) {
-    const target = compareTarget(u);
-    if (!target) {
-      return uploadHeader('Quality check') + `<div class="quality-body">
-        ${videoBlock('up-video', uploadVideoName(u))}
-        <section class="card rubric" aria-labelledby="rub-title">
-          <h2 class="card-title" id="rub-title">Rubric score</h2>
-          <div class="score-row"><span class="big">x.x</span><span class="of">/ 5</span><span class="spacer"></span><span class="stars" role="img" aria-label="Rubric score, 4 of 5 stars (placeholder)">${stars(4)}</span></div>
-          ${D.rubric.map(([k, v]) => `<div class="rubric-row"><span class="k">${k}</span><div class="meter brand"><span style="width:${v * 100}%"></span></div><span class="v">x / 5</span></div>`).join('')}
-          <div class="divider"></div>
-          <div class="rating-row"><div><p class="t" id="your-rating">Your rating</p><p class="s">Tap a star to override the rubric score</p></div><span class="spacer"></span>
-            <div class="stars user" role="radiogroup" aria-labelledby="your-rating">${Array.from({ length: 5 }, (_, i) =>
-              `<button type="button" role="radio" aria-checked="${u.rating === i + 1}" aria-label="${i + 1} star${i ? 's' : ''}" class="star-btn ${i < u.rating ? 'on' : ''}" data-action="up-rate" data-value="${i + 1}">${ic(i < u.rating ? 'star' : 'starOutline', 24)}</button>`).join('')}</div></div>
-          <div class="actions-right"><button type="button" class="btn btn-secondary" data-action="up-goto" data-value="2">Back</button>
-            <button type="button" class="btn btn-primary" data-action="up-confirm-rating">Confirm rating</button></div>
-        </section></div>`;
-    }
-    const v = nextVersion(u);
-    const newName = u.video ? u.video.name : `${u.skills.join('-')}_v${v}.mp4`;
-    return uploadHeader('Quality check') + `
-      <h2 class="question">Is the new run better than your current best?</h2>
-      <p class="note">${ic('info', 16)} Your pick sets the best version for this skill and level. Each comparison also helps refine the quality rubric, so future runs are scored more like your team would score them.</p>
-      <div class="compare-grid">
-        <section class="card compare-card" aria-label="Current best">
-          <div class="compare-head">${tag('Current best', 'green')}<span class="name">${esc(target.file)}</span><span class="meta">v${target.version} · ${esc(target.quality)} · ${esc(target.tokens)} tokens</span></div>
-          ${videoBlock('cmp-best', '')}${playerBar('cmp-best')}
-          <button type="button" class="btn btn-primary btn-block" data-action="up-pick" data-value="best">Keep current best</button>
-        </section>
-        <section class="card compare-card" aria-label="New run">
-          <div class="compare-head">${tag('New run', 'brand')}<span class="name">${esc(newName)}</span><span class="meta">v${v} · not rated yet · ${tokensLabel(u)} tokens</span></div>
-          ${videoBlock('cmp-new', '')}${playerBar('cmp-new')}
-          <button type="button" class="btn btn-primary btn-block" data-action="up-pick" data-value="new">New run is better</button>
-        </section>
-      </div>`;
-  }
-
-  function uploadStep4(u) {
-    const original = u.prompt || D.defaultPrompt;
-    return uploadHeader('Feedback') + `
-      <section class="card feedback-card" aria-labelledby="fb-title">
-        <h2 class="card-title" id="fb-title">Your feedback</h2>
-        <div class="field"><label class="field-label" for="up-liked">What do you like about this run?</label>
-          <textarea class="textarea sm" id="up-liked" data-bind="upload.liked" placeholder="e.g. ${esc(D.feedbackExample.liked)}">${esc(u.liked)}</textarea></div>
-        <div class="field"><label class="field-label" for="up-change">What don't you like, or what should change?</label>
-          <textarea class="textarea sm" id="up-change" data-bind="upload.change" placeholder="e.g. ${esc(D.feedbackExample.change)}">${esc(u.change)}</textarea></div>
-        <div class="actions-right">
-          <button type="button" class="btn btn-secondary" data-action="up-suggest" ${u.suggested ? 'aria-pressed="true"' : ''}>Suggest prompt (optional)</button>
-          <button type="button" class="btn btn-primary" data-action="up-save">Save run</button></div>
-      </section>
-      ${u.suggested ? `<section class="card feedback-card" aria-labelledby="sp-title" id="suggested">
-        <div class="suggest-head"><span class="suggest-icon">${ic('sparkle', 16)}</span><h2 class="card-title" id="sp-title">Suggested prompt</h2>${tag('Optional', 'grey')}</div>
-        <div class="field"><p class="label-xs">Original</p><div class="prompt-original">${esc(original)}</div></div>
-        <div class="field"><label class="label-xs brand" for="up-improved">Improved</label>
-          ${u.editingPrompt
-            ? `<textarea class="prompt-improved" id="up-improved" data-bind="upload.improved">${esc(u.improved)}</textarea>`
-            : `<div class="prompt-improved" id="up-improved">${esc(u.improved)}</div>`}</div>
-        <div class="field"><p class="label-xs">What changed</p><div class="tag-row">${D.promptChanges.map(t => tag(t, 'brand')).join('')}</div></div>
-        <div class="actions-right">
-          <button type="button" class="btn btn-secondary" data-action="up-edit-prompt">${u.editingPrompt ? 'Done editing' : 'Edit prompt'}</button>
-          <button type="button" class="btn btn-primary" data-action="up-copy-prompt">Copy prompt</button></div>
-      </section>` : ''}`;
   }
 
   /* --------------------------------------------------------------- modals */
@@ -844,24 +790,24 @@
     toast('Skills saved' + (moved ? ` · ${moved} run${moved === 1 ? '' : 's'} moved to Recently deleted` : ''));
   }
 
-  function uploadRunBenchmarks() {
+  function reviewUpload() {
     const u = state.upload;
-    if (!u.skills.length) { u.error = 'Pick at least one skill this run tests.'; render(); $('#up-skill-q') && $('#up-skill-q').focus(); return; }
-    u.error = ''; u.step = 2; u.startedAt = Date.now(); state.openMenu = null;
-    render(); window.scrollTo(0, 0);
+    u.errors = validateUpload(u);
+    state.openMenu = null;
+    const first = Object.keys(u.errors)[0];
+    render();
+    if (first) { const el = { skills: '#up-skill-q', fidelity: '#up-fidelity', quality: '#up-quality' }[first]; $(el) && $(el).focus(); return; }
+    u.step = 2; render(); window.scrollTo(0, 0);
   }
 
   function saveUploadedRun() {
     const u = state.upload;
-    const target = compareTarget(u);
-    const newIsBest = !target || u.pick === 'new';
     const v = nextVersion(u);
-    if (newIsBest && target) target.best = false;
     const run = {
       id: 'u' + Date.now(), file: u.video ? u.video.name : `${u.skills.join('-')}_v${v}.mp4`, skills: u.skills.slice(), version: v, level: u.level,
-      runsAtLevel: 'xx', complete: 'Pass', fidelity: 'xx%', editable: u.aep ? 'Yes' : 'N/A', quality: 'x.x / 5', best: newIsBest,
+      runsAtLevel: 'xx', complete: u.complete, fidelity: fidelityValue(u) + '%', editable: u.editable, quality: qualityValue(u) + ' / 5', best: false,
       tokens: tokensLabel(u), cost: '$x.xx', duration: '0:06', date: todayIso(), time: nowTime(), prompt: u.prompt,
-      liked: u.liked, change: u.change, deleted: false, daysLeft: null
+      liked: '', change: '', deleted: false, daysLeft: null
     };
     state.runs.unshift(run);
     run.skills.forEach(name => {
@@ -870,7 +816,7 @@
     });
     state.upload = freshUpload();
     go('#/overview');
-    toast('Run saved to the archive', { label: 'View', fn: () => go('#/overview/' + run.id) });
+    toast('Run uploaded', { label: 'View', fn: () => go('#/overview/' + run.id) });
   }
 
   function handleAction(el, e) {
@@ -976,31 +922,16 @@
       }
       case 'up-level': u.level = val; render(); break;
       case 'up-browse': $('#file-video').click(); break;
-      case 'up-attach': $('#file-aep').click(); break;
+      case 'up-complete': u.complete = val; render(); break;
+      case 'up-editable': u.editable = val; render(); break;
       case 'up-cancel': {
-        const dirty = u.step > 1 || u.skills.length || u.prompt || u.video || u.aep || u.tokens;
+        const dirty = u.step > 1 || u.skills.length || u.prompt || u.video || u.tokens || u.fidelity || u.quality;
         const reset = () => { state.upload = freshUpload(); state.confirm = null; go('#/overview'); };
         if (!dirty) reset();
-        else askConfirm({ title: 'Discard this test run?', body: "The run details, video and any feedback you've added won't be saved.", ok: 'Discard', icon: 'x', fn: reset });
+        else askConfirm({ title: 'Discard this test run?', body: "The run details, video and benchmark results you've entered won't be saved.", ok: 'Discard', icon: 'x', fn: reset });
         break;
       }
       case 'up-goto': u.step = Number(val); render(); window.scrollTo(0, 0); break;
-      case 'up-continue': u.step = 3; render(); window.scrollTo(0, 0); break;
-      case 'up-rate': u.rating = Number(val); render(); { const b = document.querySelector(`[data-action="up-rate"][data-value="${val}"]`); b && b.focus(); } break;
-      case 'up-confirm-rating': u.step = 4; render(); window.scrollTo(0, 0); break;
-      case 'up-pick': u.pick = val; u.step = 4; render(); window.scrollTo(0, 0); break;
-      case 'up-suggest':
-        u.suggested = true; render();
-        { const s = $('#suggested'); s && s.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-        break;
-      case 'up-edit-prompt': u.editingPrompt = !u.editingPrompt; render(); if (u.editingPrompt) $('#up-improved').focus(); break;
-      case 'up-copy-prompt': {
-        const text = u.improved;
-        const done = () => toast('Improved prompt copied');
-        if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => toast('Could not copy. Select the text and copy it instead.'));
-        else toast('Could not copy. Select the text and copy it instead.');
-        break;
-      }
       case 'up-save': saveUploadedRun(); break;
       default: break;
     }
@@ -1017,7 +948,7 @@
   });
 
   document.addEventListener('submit', e => {
-    if (e.target.id === 'upload-form') { e.preventDefault(); uploadRunBenchmarks(); }
+    if (e.target.id === 'upload-form') { e.preventDefault(); reviewUpload(); }
   });
 
   document.addEventListener('input', e => {
@@ -1025,6 +956,7 @@
     if (el.dataset.bind) {
       const [scope, key] = el.dataset.bind.split('.');
       state[scope][key] = el.value;
+      if (scope === 'upload' && state.upload.errors[key]) { delete state.upload.errors[key]; el.classList.remove('is-invalid'); }
       if ('page' in state[scope] && key === 'q') state[scope].page = 1;
       if (el.dataset.bind === 'upload.skillQuery') state.openMenu = 'up-skills';
       if ('live' in el.dataset) render();
@@ -1089,12 +1021,6 @@
     state.upload.video = { name: file.name, size: file.size }; render();
   }
   $('#file-video').addEventListener('change', e => { setVideo(e.target.files[0]); e.target.value = ''; });
-  $('#file-aep').addEventListener('change', e => {
-    const f = e.target.files[0]; e.target.value = '';
-    if (!f) return;
-    if (!/\.aep$/i.test(f.name)) { toast('Attach an After Effects project (.aep) file.'); return; }
-    state.upload.aep = { name: f.name, size: f.size }; render();
-  });
   document.addEventListener('dragover', e => {
     const dz = e.target.closest && e.target.closest('#dropzone');
     if (dz) { e.preventDefault(); dz.classList.add('is-drag'); }
