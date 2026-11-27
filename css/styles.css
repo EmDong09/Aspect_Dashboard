@@ -457,6 +457,7 @@ button.play-btn:hover { transform: scale(1.06); }
 .recorded-list dt { font-size: 13px; font-weight: 500; }
 .recorded-list dd { margin: 0; font-size: 12px; color: var(--text-secondary); }
 .recorded-list dd.muted { color: var(--text-muted); }
+.recorded-list dd.is-complete { color: var(--accent-green); font-weight: 500; }
 
 /* review */
 .checks-body { display: grid; grid-template-columns: minmax(0, 500fr) minmax(0, 588fr); gap: 24px; align-items: start; }

@@ -12,7 +12,7 @@
   function freshUpload() {
     return {
       step: 1, skills: [], skillQuery: '', level: 'Single', tokens: '', prompt: '', video: null,
-      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', runsAtLevel: '', uploaded: todayIso(), errors: {},
+      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', runsAtLevel: '', uploaded: todayIso(), errors: {}, touched: {},
       runId: null, compareId: null, liked: '', change: '', suggested: false, editingPrompt: false, improved: D.improvedPrompt
     };
   }
@@ -496,6 +496,32 @@
   }
   const fieldError = msg => msg ? `<p class="field-error" role="alert">${esc(msg)}</p>` : '';
 
+  // "What gets recorded" status per column. Fields the user fills in read
+  // "Awaiting response" until they have a value, then "Complete". Level,
+  // Complete and Editable start with a default, so they count once clicked.
+  function recordedList(u) {
+    const inRange = (v, max) => !isNaN(v) && v >= 0 && v <= max;
+    const rows = [
+      ['Skill', u.skills.length > 0],
+      ['Level', !!u.touched.level],
+      ['Runs at level', null],
+      ['Complete', !!u.touched.complete],
+      ['Fidelity', inRange(fidelityValue(u), 100)],
+      ['Editable', !!u.touched.editable],
+      ['Quality', inRange(qualityValue(u), 5)],
+      ['Token cost', toNumber(u.tokens) > 0],
+      ['Uploaded', null]
+    ];
+    return rows.map(([k, done]) => {
+      const [text, cls] = done === null ? ['Auto-filled', 'muted'] : done ? ['Complete', 'is-complete'] : ['Awaiting response', ''];
+      return `<div><dt>${k}</dt><dd class="${cls}">${text}</dd></div>`;
+    }).join('');
+  }
+  function refreshRecorded() {
+    const el = document.getElementById('recorded-list');
+    if (el) el.innerHTML = recordedList(state.upload);
+  }
+
   function uploadEnter(u) {
     const err = u.errors || {};
     const open = state.openMenu === 'up-skills';
@@ -513,11 +539,6 @@
     const video = u.video
       ? `<span class="dz-icon">${ic('check', 16)}</span><span class="dz-title">${esc(u.video.name)}</span><span class="dz-sub">${fmtBytes(u.video.size)} · <b>Replace video</b></span>`
       : `<span class="dz-icon">${ic('upload', 20)}</span><span class="dz-title">Drag &amp; drop your test run video</span><span class="dz-sub">or <b>click to browse</b> · MP4 or MOV</span>`;
-    const recorded = [
-      ['Skill', 'You enter'], ['Level', 'You enter'], ['Runs at level', 'Automatic'], ['Complete', 'From local testing'],
-      ['Fidelity', 'From local testing'], ['Editable', 'From local testing'], ['Quality', 'From local testing'],
-      ['Token cost', 'You enter'], ['Uploaded', 'Automatic']
-    ];
     return uploadHeader('Upload test run') + `<form class="upload-body" id="upload-form" novalidate>
       <div class="col" style="gap:24px">
         <section class="card form-card" aria-labelledby="rd-title">
@@ -575,7 +596,7 @@
       </div>
       <aside class="card recorded-card" aria-labelledby="rec-title">
         <div><h2 class="card-title" id="rec-title">What gets recorded</h2><p class="card-sub">These fill the columns in every test run table</p></div>
-        <dl class="recorded-list">${recorded.map(([k, v]) => `<div><dt>${k}</dt><dd class="${v === 'Automatic' ? 'muted' : ''}">${v}</dd></div>`).join('')}</dl>
+        <dl class="recorded-list" id="recorded-list" aria-live="polite">${recordedList(u)}</dl>
       </aside>
     </form>`;
   }
@@ -1018,10 +1039,10 @@
         if (!u.skills.includes(q)) u.skills.push(q);
         u.skillQuery = ''; render(); $('#up-skill-q').focus(); break;
       }
-      case 'up-level': u.level = val; render(); break;
+      case 'up-level': u.level = val; u.touched.level = true; render(); break;
       case 'up-browse': $('#file-video').click(); break;
-      case 'up-complete': u.complete = val; render(); break;
-      case 'up-editable': u.editable = val; render(); break;
+      case 'up-complete': u.complete = val; u.touched.complete = true; render(); break;
+      case 'up-editable': u.editable = val; u.touched.editable = true; render(); break;
       case 'up-cancel': {
         if (u.runId) { finishUpload(false); break; } // the run is already uploaded
         const dirty = u.step > 1 || u.skills.length || u.prompt || u.video || u.tokens || u.fidelity || u.quality;
@@ -1069,6 +1090,7 @@
       const [scope, key] = el.dataset.bind.split('.');
       state[scope][key] = el.value;
       if (scope === 'upload' && state.upload.errors[key]) { delete state.upload.errors[key]; el.classList.remove('is-invalid'); }
+      if (scope === 'upload') refreshRecorded();
       if ('page' in state[scope] && key === 'q') state[scope].page = 1;
       if (el.dataset.bind === 'upload.skillQuery') state.openMenu = 'up-skills';
       if ('live' in el.dataset) render();
