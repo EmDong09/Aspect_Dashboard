@@ -133,7 +133,8 @@
   function videoBlock(id, filename, opts = {}) {
     const p = playerState(id);
     // The whole frame toggles playback; the button stays as the keyboard control.
-    return `<div class="video ${p.playing ? 'is-playing' : ''} ${opts.cls || ''}" data-player="${id}" data-action="play" data-id="${id}">
+    const bg = opts.thumb ? ` style="background-image:url('${opts.thumb}')"` : '';
+    return `<div class="video ${opts.thumb ? 'has-thumb' : ''} ${p.playing ? 'is-playing' : ''} ${opts.cls || ''}" data-player="${id}" data-action="play" data-id="${id}"${bg}>
       <div class="video-overlay">
         <button type="button" class="play-btn" data-action="play" data-id="${id}" aria-label="${p.playing ? 'Pause' : 'Play'}">${ic(p.playing ? 'pause' : 'play', 18)}</button>
         ${filename ? `<span class="filename">${esc(filename)}</span>` : ''}
@@ -452,6 +453,7 @@
       <div class="header-actions" style="width:auto">${stepper(state.upload.step)}<span class="v-divider"></span>
         <button type="button" class="btn btn-secondary btn-sm btn-muted" data-action="up-cancel">${ic('x', 14)} Cancel</button></div></header>`;
   }
+  const fmtDuration = sec => Math.floor(sec / 60) + ':' + String(Math.round(sec % 60)).padStart(2, '0');
   const fmtBytes = b => b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
   const toNumber = v => { const s = String(v).replace(/[^\d.]/g, ''); return s === '' ? NaN : Number(s); };
   function tokensLabel(u) {
@@ -544,10 +546,20 @@
         return `<button type="button" role="option" aria-selected="${on}" class="menu-item lg ${on ? 'is-selected' : ''}" data-action="up-toggle-skill" data-value="${esc(n)}"><span class="check">${on ? ic('check', 12) : ''}</span>${esc(n)}</button>`;
       }).join('') || '<p class="menu-empty">No matching skills</p>'}</div>
       <div class="menu-divider"></div>
-      <button type="button" class="menu-item lg link-btn" style="font-size:14px" data-action="up-add-skill">${ic('plus', 14)} ${canAdd ? `Add “${esc(q)}”` : 'Add new skill'}</button></div>`;
-    const video = u.video
-      ? `<span class="dz-icon">${ic('check', 16)}</span><span class="dz-title">${esc(u.video.name)}</span><span class="dz-sub">${fmtBytes(u.video.size)} · <b>Replace video</b></span>`
-      : `<span class="dz-icon">${ic('upload', 20)}</span><span class="dz-title">Drag &amp; drop your test run video</span><span class="dz-sub">or <b>click to browse</b> · MP4 or MOV</span>`;
+      <button type="button" class="menu-item lg link-btn" style="font-size:16px" data-action="up-add-skill">${ic('plus', 14)} ${canAdd ? `Add “${esc(q)}”` : 'Add new skill'}</button></div>`;
+    const vid = u.video;
+    const videoField = vid
+      ? `<div class="video-file" id="dropzone">
+          <div class="vf-thumb">${vid.thumb
+            ? `<img src="${vid.thumb}" alt="First frame of ${esc(vid.name)}">`
+            : `<span class="vf-placeholder">${vid.loading ? 'Loading preview…' : ic('play', 18)}</span>`}
+            ${vid.duration ? `<span class="duration">${fmtDuration(vid.duration)}</span>` : ''}</div>
+          <div class="vf-meta"><p class="vf-name">${esc(vid.name)}</p><p class="vf-sub">${fmtBytes(vid.size)}${vid.duration ? ' · ' + fmtDuration(vid.duration) : ''}</p></div>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-secondary btn-sm" data-action="up-browse">Replace</button>
+          <button type="button" class="close-btn" data-action="up-remove-video" aria-label="Remove video">${ic('x', 16)}</button>
+        </div>`
+      : `<div class="dropzone" role="button" tabindex="0" data-action="up-browse" id="dropzone" aria-label="Upload test run video, MP4 or MOV"><span class="dz-icon">${ic('upload', 20)}</span><span class="dz-title">Drag &amp; drop your test run video</span><span class="dz-sub">or <b>click to browse</b> · MP4 or MOV</span></div>`;
     return uploadHeader('Upload test run') + `<form class="upload-body" id="upload-form" novalidate>
       <div class="col" style="gap:24px">
         <section class="card form-card" aria-labelledby="rd-title">
@@ -572,7 +584,7 @@
           <div class="field"><label class="field-label" for="up-prompt">Original prompt</label>
             <textarea class="textarea" id="up-prompt" data-bind="upload.prompt" placeholder="Paste the exact prompt you used to generate this run…">${esc(u.prompt)}</textarea></div>
           <div class="field"><span class="field-label">Test run video</span>
-            <div class="dropzone" role="button" tabindex="0" data-action="up-browse" id="dropzone" aria-label="Upload test run video, MP4 or MOV">${video}</div></div>
+            ${videoField}</div>
         </section>
         <section class="card form-card" aria-labelledby="br-title">
           <div class="card-header"><h2 class="card-title" id="br-title">Benchmark results</h2>
@@ -618,7 +630,7 @@
     const stars = Math.round(q);
     return uploadHeader('Review &amp; upload') + `<div class="checks-body">
       <div class="col">
-        ${videoBlock('up-video', uploadVideoName(u))}
+        ${videoBlock('up-video', uploadVideoName(u), { thumb: u.video && u.video.thumb })}
         <section class="card result-card" aria-labelledby="ri-title">
           <h2 class="card-title" id="ri-title">Run info</h2>
           <dl class="info-grid info-grid-auto">
@@ -1052,6 +1064,7 @@
       }
       case 'up-level': u.level = val; u.touched.level = true; render(); break;
       case 'up-browse': $('#file-video').click(); break;
+      case 'up-remove-video': u.video = null; render(); { const d = $('#dropzone'); d && d.focus(); } break;
       case 'open-date': {
         const input = $('#up-uploaded');
         if (input && e.target !== input && input.showPicker) { try { input.showPicker(); } catch (err) { input.focus(); } }
@@ -1169,8 +1182,48 @@
   function setVideo(file) {
     if (!file) return;
     if (!/\.(mp4|mov)$/i.test(file.name) && !/^video\/(mp4|quicktime)$/.test(file.type)) { toast('Upload an MP4 or MOV file.'); return; }
-    state.upload.video = { name: file.name, size: file.size }; render();
+    const video = { name: file.name, size: file.size, thumb: null, duration: null, loading: true };
+    state.upload.video = video; render();
+    makeThumbnail(file).then(({ thumb, duration }) => {
+      Object.assign(video, { thumb, duration, loading: false });
+      if (state.upload.video === video) render();
+    });
   }
+
+  // Grab a frame from the selected video in the browser for the preview.
+  // Resolves without a thumbnail if the browser can't decode the file.
+  function makeThumbnail(file) {
+    return new Promise(resolve => {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      let done = false, tries = 0;
+      const finish = (thumb, duration) => {
+        if (done) return; done = true;
+        URL.revokeObjectURL(url); v.removeAttribute('src'); v.load();
+        resolve({ thumb, duration: isFinite(duration) ? duration : null });
+      };
+      const capture = () => {
+        try {
+          const w = 480, h = Math.round(w * (v.videoHeight / v.videoWidth || 9 / 16));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(v, 0, 0, w, h);
+          // A frame that isn't decoded yet draws as solid black: try a later frame.
+          const px = ctx.getImageData(0, 0, w, h).data;
+          let sum = 0; for (let k = 0; k < px.length; k += 400) sum += px[k] + px[k + 1] + px[k + 2];
+          if (sum === 0 && tries++ < 3) { v.currentTime = Math.min(v.duration - 0.05, v.currentTime + 0.5); return; }
+          finish(sum === 0 ? null : c.toDataURL('image/jpeg', 0.82), v.duration);
+        } catch (e) { finish(null, v.duration); }
+      };
+      v.muted = true; v.playsInline = true; v.preload = 'auto';
+      v.addEventListener('loadedmetadata', () => { v.currentTime = Math.min(0.5, (v.duration || 1) / 2); });
+      v.addEventListener('seeked', () => setTimeout(capture, 120));
+      v.addEventListener('error', () => finish(null, null));
+      setTimeout(() => finish(null, v.duration), 6000);
+      v.src = url;
+    });
+  }
+
   $('#file-video').addEventListener('change', e => { setVideo(e.target.files[0]); e.target.value = ''; });
   document.addEventListener('dragover', e => {
     const dz = e.target.closest && e.target.closest('#dropzone');
