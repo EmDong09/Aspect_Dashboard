@@ -12,7 +12,7 @@
   function freshUpload() {
     return {
       step: 1, skills: [], skillQuery: '', level: 'Single', tokens: '', prompt: '', video: null,
-      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', errors: {},
+      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', runsAtLevel: '', uploaded: todayIso(), errors: {},
       runId: null, compareId: null, liked: '', change: '', suggested: false, editingPrompt: false, improved: D.improvedPrompt
     };
   }
@@ -461,6 +461,9 @@
     const key = u.skills.slice().sort().join('|');
     return String(activeRuns().filter(r => r.level === u.level && r.skills.slice().sort().join('|') === key).length + 1);
   }
+  // What gets saved: the user's entry, or the automatic value when left blank.
+  const runsAtLevelValue = u => u.runsAtLevel.trim() || runsAtLevel(u);
+  const uploadedLabel = u => u.uploaded === todayIso() ? 'Today' : fmtLong(u.uploaded);
   function nextVersion(u) {
     const key = u.skills.slice().sort().join('|');
     const vs = state.runs.filter(r => r.skills.slice().sort().join('|') === key).map(r => r.version);
@@ -475,6 +478,9 @@
     const q = qualityValue(u);
     if (isNaN(q)) errors.quality = 'Enter the quality score from local testing.';
     else if (q < 0 || q > 5) errors.quality = 'Quality is a score from 0 to 5.';
+    if (u.runsAtLevel.trim() && !/^[1-9]\d*$/.test(u.runsAtLevel.trim())) errors.runsAtLevel = 'Runs at level is a whole number, 1 or more.';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(u.uploaded)) errors.uploaded = 'Pick the upload date.';
+    else if (u.uploaded > todayIso()) errors.uploaded = "The upload date can't be in the future.";
     return errors;
   }
 
@@ -557,11 +563,13 @@
           </div>
           <div class="field-row">
             <div class="field"><label class="field-label" for="up-runs-at-level">Runs at level</label>
-              <div class="input-affix"><input class="input is-locked" id="up-runs-at-level" value="${esc(runsAtLevel(u))}" readonly aria-readonly="true" aria-describedby="auto-note"><span class="affix">Automatic</span></div></div>
+              <input class="input ${err.runsAtLevel ? 'is-invalid' : ''}" id="up-runs-at-level" data-bind="upload.runsAtLevel" value="${esc(u.runsAtLevel)}" placeholder="${esc(runsAtLevel(u))}" inputmode="numeric" autocomplete="off" aria-describedby="ral-hint" ${err.runsAtLevel ? 'aria-invalid="true"' : ''}>
+              ${fieldError(err.runsAtLevel)}<p class="field-hint" id="ral-hint">Leave blank to count it automatically</p></div>
             <div class="field"><label class="field-label" for="up-uploaded">Uploaded</label>
-              <div class="input-affix"><input class="input is-locked" id="up-uploaded" value="Today" readonly aria-readonly="true" aria-describedby="auto-note"><span class="affix">Automatic</span></div></div>
+              <input class="input ${err.uploaded ? 'is-invalid' : ''}" type="date" id="up-uploaded" data-bind="upload.uploaded" value="${esc(u.uploaded)}" max="${todayIso()}" aria-describedby="upl-hint" ${err.uploaded ? 'aria-invalid="true"' : ''}>
+              ${fieldError(err.uploaded)}<p class="field-hint" id="upl-hint">Set to today. Change it if the run happened earlier</p></div>
           </div>
-          <div class="auto-note" id="auto-note">${ic('info', 16)}<span>Runs at level and the upload date are filled in automatically.</span></div>
+          <div class="auto-note" id="auto-note">${ic('info', 16)}<span>Runs at level and the upload date are filled in automatically. You can change them if needed.</span></div>
         </section>
         <div class="form-footer"><button type="submit" class="btn btn-primary">Review run</button></div>
       </div>
@@ -585,8 +593,8 @@
             <dt>Skill(s)</dt><dd class="tag-row">${u.skills.map(s => tag(s, 'grey')).join('')}</dd><dd></dd>
             <dt>Level</dt><dd>${levelTag(u.level)}</dd><dd></dd>
             <dt>Token cost</dt><dd>${tokensLabel(u)} tokens</dd><dd></dd>
-            <dt>Runs at level</dt><dd>${esc(runsAtLevel(u))}</dd><dd class="auto">Automatic</dd>
-            <dt>Uploaded</dt><dd>Today</dd><dd class="auto">Automatic</dd>
+            <dt>Runs at level</dt><dd>${esc(runsAtLevelValue(u))}</dd><dd class="auto">${u.runsAtLevel.trim() ? 'Edited' : 'Automatic'}</dd>
+            <dt>Uploaded</dt><dd>${esc(uploadedLabel(u))}</dd><dd class="auto">${u.uploaded === todayIso() ? 'Automatic' : 'Edited'}</dd>
           </dl>
           <div class="divider"></div>
           <p class="muted" style="font-weight:500">Original prompt</p>
@@ -865,7 +873,7 @@
     state.openMenu = null;
     const first = Object.keys(u.errors)[0];
     render();
-    if (first) { const el = { skills: '#up-skill-q', fidelity: '#up-fidelity', quality: '#up-quality' }[first]; $(el) && $(el).focus(); return; }
+    if (first) { const el = { skills: '#up-skill-q', fidelity: '#up-fidelity', quality: '#up-quality', runsAtLevel: '#up-runs-at-level', uploaded: '#up-uploaded' }[first]; $(el) && $(el).focus(); return; }
     u.step = 2; render(); window.scrollTo(0, 0);
   }
 
@@ -876,8 +884,8 @@
     const v = nextVersion(u);
     const run = {
       id: 'u' + Date.now(), file: u.video ? u.video.name : `${u.skills.join('-')}_v${v}.mp4`, skills: u.skills.slice(), version: v, level: u.level,
-      runsAtLevel: runsAtLevel(u), complete: u.complete, fidelity: fidelityValue(u) + '%', editable: u.editable, quality: qualityValue(u) + ' / 5', best: false,
-      tokens: tokensLabel(u), cost: '$x.xx', duration: '0:06', date: todayIso(), time: nowTime(), prompt: u.prompt,
+      runsAtLevel: runsAtLevelValue(u), complete: u.complete, fidelity: fidelityValue(u) + '%', editable: u.editable, quality: qualityValue(u) + ' / 5', best: false,
+      tokens: tokensLabel(u), cost: '$x.xx', duration: '0:06', date: u.uploaded, time: nowTime(), prompt: u.prompt,
       liked: '', change: '', deleted: false, daysLeft: null
     };
     const target = activeRuns().find(r => r.best && r.level === run.level && sameSkillSet(r.skills, run.skills));

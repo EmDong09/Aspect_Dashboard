@@ -445,11 +445,6 @@ button.play-btn:hover { transform: scale(1.06); }
 .dropzone .dz-sub b { color: var(--brand-primary); font-weight: 600; }
 /* upload: benchmark results and "what gets recorded" */
 .input-affix.short .input { padding-right: 44px; }
-.input.is-locked {
-  background: var(--bg-subtle); border-color: var(--border-default); color: var(--text-secondary);
-  cursor: not-allowed; box-shadow: none; padding-right: 96px;
-}
-.input.is-locked:focus { border-color: var(--border-default); box-shadow: none; }
 .form-footer { display: flex; justify-content: flex-end; gap: 12px; }
 .auto-note {
   display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
