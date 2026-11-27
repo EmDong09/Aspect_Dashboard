@@ -71,7 +71,7 @@ p, h1, h2, h3 { margin: 0; }
   background: var(--bg-sidebar); overflow-y: auto;
 }
 .logo { display: flex; align-items: center; gap: 10px; padding: 0 8px; margin-bottom: 28px; color: #fff; }
-.logo img { width: 28px; height: 22px; }
+.logo img { width: 27px; height: 22px; }
 .logo span { font-size: 22px; font-weight: 600; line-height: 1.4; }
 .nav-item {
   display: flex; align-items: center; padding: 10px 12px; border-radius: 10px;

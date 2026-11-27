@@ -2,7 +2,7 @@
 
 A clickable front-end prototype of **Aspect**, an internal benchmarking dashboard for testing, grading and comparing the After Effects motion-design skills built for an AI agent harness.
 
-It is built from the *Aspect Dashboard* Figma file (page "Most recent: V1 layout"). Colors, type, spacing, radii and icons come straight from that file's variables and layers.
+It is built from the *Aspect Dashboard* Figma file (page "V2 layout"). Colors, type, spacing, radii and icons come straight from that file's variables and layers.
 
 ## Run it
 

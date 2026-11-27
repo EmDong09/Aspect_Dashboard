@@ -402,7 +402,7 @@
       <section class="card table-card" aria-labelledby="all-skills">
         <div class="table-card-header" style="padding:16px 20px">
           <div><h2 class="card-title" id="all-skills">All skills</h2>
-            <p class="card-sub">${editing ? 'Rename, remove or add skills, then save' : `${state.skills.length} skills documented · each with a plain-language description`}</p></div>
+            <p class="card-sub">${state.skills.length} skills documented</p></div>
           <span class="spacer"></span>
           ${editing
             ? `<button type="button" class="btn btn-secondary" data-action="cancel-edit">Cancel</button><button type="button" class="btn btn-primary" data-action="save-skills">Save changes</button>`
