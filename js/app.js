@@ -455,6 +455,12 @@
   const fidelityValue = u => toNumber(u.fidelity);
   const qualityValue = u => toNumber(u.quality);
   function uploadVideoName(u) { return u.video ? u.video.name : 'test_run.mp4'; }
+  // Count of runs for this exact skill set and level, including the one being uploaded.
+  function runsAtLevel(u) {
+    if (!u.skills.length) return '—';
+    const key = u.skills.slice().sort().join('|');
+    return String(activeRuns().filter(r => r.level === u.level && r.skills.slice().sort().join('|') === key).length + 1);
+  }
   function nextVersion(u) {
     const key = u.skills.slice().sort().join('|');
     const vs = state.runs.filter(r => r.skills.slice().sort().join('|') === key).map(r => r.version);
@@ -549,7 +555,13 @@
               <div class="input-affix short"><input class="input ${err.quality ? 'is-invalid' : ''}" id="up-quality" data-bind="upload.quality" value="${esc(u.quality)}" inputmode="decimal" placeholder="e.g. 4.2" autocomplete="off" aria-describedby="q-hint" ${err.quality ? 'aria-invalid="true"' : ''}><span class="affix">/ 5</span></div>
               ${fieldError(err.quality)}<p class="field-hint" id="q-hint">Score from your local quality check</p></div>
           </div>
-          <div class="auto-note">${ic('info', 16)}<span>Runs at level and the upload date are filled in automatically.</span></div>
+          <div class="field-row">
+            <div class="field"><label class="field-label" for="up-runs-at-level">Runs at level</label>
+              <div class="input-affix"><input class="input is-locked" id="up-runs-at-level" value="${esc(runsAtLevel(u))}" readonly aria-readonly="true" aria-describedby="auto-note"><span class="affix">Automatic</span></div></div>
+            <div class="field"><label class="field-label" for="up-uploaded">Uploaded</label>
+              <div class="input-affix"><input class="input is-locked" id="up-uploaded" value="Today" readonly aria-readonly="true" aria-describedby="auto-note"><span class="affix">Automatic</span></div></div>
+          </div>
+          <div class="auto-note" id="auto-note">${ic('info', 16)}<span>Runs at level and the upload date are filled in automatically.</span></div>
         </section>
         <div class="form-footer"><button type="submit" class="btn btn-primary">Review run</button></div>
       </div>
@@ -573,7 +585,7 @@
             <dt>Skill(s)</dt><dd class="tag-row">${u.skills.map(s => tag(s, 'grey')).join('')}</dd><dd></dd>
             <dt>Level</dt><dd>${levelTag(u.level)}</dd><dd></dd>
             <dt>Token cost</dt><dd>${tokensLabel(u)} tokens</dd><dd></dd>
-            <dt>Runs at level</dt><dd>xx</dd><dd class="auto">Automatic</dd>
+            <dt>Runs at level</dt><dd>${esc(runsAtLevel(u))}</dd><dd class="auto">Automatic</dd>
             <dt>Uploaded</dt><dd>Today</dd><dd class="auto">Automatic</dd>
           </dl>
           <div class="divider"></div>
@@ -864,7 +876,7 @@
     const v = nextVersion(u);
     const run = {
       id: 'u' + Date.now(), file: u.video ? u.video.name : `${u.skills.join('-')}_v${v}.mp4`, skills: u.skills.slice(), version: v, level: u.level,
-      runsAtLevel: 'xx', complete: u.complete, fidelity: fidelityValue(u) + '%', editable: u.editable, quality: qualityValue(u) + ' / 5', best: false,
+      runsAtLevel: runsAtLevel(u), complete: u.complete, fidelity: fidelityValue(u) + '%', editable: u.editable, quality: qualityValue(u) + ' / 5', best: false,
       tokens: tokensLabel(u), cost: '$x.xx', duration: '0:06', date: todayIso(), time: nowTime(), prompt: u.prompt,
       liked: '', change: '', deleted: false, daysLeft: null
     };
