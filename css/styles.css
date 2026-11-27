@@ -291,6 +291,7 @@ p, h1, h2, h3 { margin: 0; }
   box-shadow: 0 1px 2px rgba(10, 13, 59, 0.06);
 }
 .play-btn .icon { margin-left: 2px; }
+.play-btn .icon, .bar-play .icon { pointer-events: none; }
 .play-btn.is-playing .icon { margin-left: 0; }
 button.play-btn:hover { transform: scale(1.06); }
 .player-bar { display: flex; align-items: center; gap: 10px; }

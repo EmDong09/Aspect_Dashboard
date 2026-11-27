@@ -109,7 +109,12 @@
       const bar = el.querySelector('.progress span'); if (bar) bar.style.width = (p.elapsed / DURATION * 100) + '%';
       const time = el.querySelector('.time'); if (time) time.textContent = fmtTime(p.elapsed) + ' / ' + fmtTime(DURATION);
       el.querySelectorAll('[data-action="play"]').forEach(b => {
-        b.innerHTML = ic(p.playing ? 'pause' : 'play', b.classList.contains('play-btn') ? 18 : 14);
+        // Only swap the icon when play/pause changes. Replacing it every frame
+        // while playing swallowed clicks, so the video couldn't be paused.
+        const state = p.playing ? 'pause' : 'play';
+        if (b.dataset.icon === state) return;
+        b.dataset.icon = state;
+        b.innerHTML = ic(state, b.classList.contains('play-btn') ? 18 : 14);
         b.classList.toggle('is-playing', p.playing);
         b.setAttribute('aria-label', p.playing ? 'Pause' : 'Play');
       });
