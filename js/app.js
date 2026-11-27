@@ -12,7 +12,7 @@
   function freshUpload() {
     return {
       step: 1, skills: [], skillQuery: '', level: 'Single', tokens: '', prompt: '', video: null,
-      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', runsAtLevel: '', uploaded: todayIso(), errors: {}, touched: {},
+      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', runsAtLevel: null, uploaded: todayIso(), errors: {}, touched: {},
       runId: null, compareId: null, liked: '', change: '', suggested: false, editingPrompt: false, improved: D.improvedPrompt
     };
   }
@@ -468,8 +468,11 @@
     return String(activeRuns().filter(r => r.level === u.level && r.skills.slice().sort().join('|') === key).length + 1);
   }
   // What gets saved: the user's entry, or the automatic value when left blank.
-  const runsAtLevelValue = u => u.runsAtLevel.trim() || runsAtLevel(u);
+  // runsAtLevel is null until the user edits the prefilled count.
+  const runsAtLevelEdited = u => u.runsAtLevel !== null && u.runsAtLevel.trim() !== runsAtLevel(u);
+  const runsAtLevelValue = u => u.runsAtLevel !== null ? u.runsAtLevel.trim() : runsAtLevel(u);
   const uploadedLabel = u => u.uploaded === todayIso() ? 'Today' : fmtLong(u.uploaded);
+  const uploadedText = u => /^\d{4}-\d{2}-\d{2}$/.test(u.uploaded) ? fmtLong(u.uploaded) : 'Pick a date';
   function nextVersion(u) {
     const key = u.skills.slice().sort().join('|');
     const vs = state.runs.filter(r => r.skills.slice().sort().join('|') === key).map(r => r.version);
@@ -484,7 +487,7 @@
     const q = qualityValue(u);
     if (isNaN(q)) errors.quality = 'Enter the quality score from local testing.';
     else if (q < 0 || q > 5) errors.quality = 'Quality is a score from 0 to 5.';
-    if (u.runsAtLevel.trim() && !/^[1-9]\d*$/.test(u.runsAtLevel.trim())) errors.runsAtLevel = 'Runs at level is a whole number, 1 or more.';
+    if (u.runsAtLevel !== null && !/^[1-9]\d*$/.test(u.runsAtLevel.trim())) errors.runsAtLevel = 'Runs at level is a whole number, 1 or more.';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(u.uploaded)) errors.uploaded = 'Pick the upload date.';
     else if (u.uploaded > todayIso()) errors.uploaded = "The upload date can't be in the future.";
     return errors;
@@ -572,31 +575,33 @@
             <div class="dropzone" role="button" tabindex="0" data-action="up-browse" id="dropzone" aria-label="Upload test run video, MP4 or MOV">${video}</div></div>
         </section>
         <section class="card form-card" aria-labelledby="br-title">
-          <div class="card-header"><div><h2 class="card-title" id="br-title">Benchmark results</h2><p class="card-sub">Enter the results from your local benchmark run</p></div>
-            <span class="spacer"></span>${tag('From local testing', 'grey')}</div>
+          <div class="card-header"><h2 class="card-title" id="br-title">Benchmark results</h2>
+            <span class="spacer"></span><span class="tag tag-grey tag-strong">From local testing</span></div>
           <div class="field-row">
-            <div class="field"><span class="field-label" id="cmp-label">Complete</span>${segmented('Complete', 'cmp-label', 'up-complete', ['Pass', 'Fail'], u.complete)}
-              <p class="field-hint">Did the run do everything the prompt asked?</p></div>
-            <div class="field"><span class="field-label" id="edit-label">Editable</span>${segmented('Editable', 'edit-label', 'up-editable', ['Yes', 'No'], u.editable)}
-              <p class="field-hint">Are text, timing and layers adjustable in AE?</p></div>
+            <div class="field"><span class="field-label" id="cmp-label">Complete</span>
+              <p class="field-hint">Did the run do everything the prompt asked?</p>${segmented('Complete', 'cmp-label', 'up-complete', ['Pass', 'Fail'], u.complete)}</div>
+            <div class="field"><span class="field-label" id="edit-label">Editable</span>
+              <p class="field-hint">Are text, timing and layers adjustable in AE?</p>${segmented('Editable', 'edit-label', 'up-editable', ['Yes', 'No'], u.editable)}</div>
           </div>
           <div class="field-row">
             <div class="field"><label class="field-label" for="up-fidelity">Fidelity</label>
+              <p class="field-hint" id="fid-hint">Share of requested properties visible in the render</p>
               <div class="input-affix short"><input class="input ${err.fidelity ? 'is-invalid' : ''}" id="up-fidelity" data-bind="upload.fidelity" value="${esc(u.fidelity)}" inputmode="decimal" placeholder="e.g. 85" autocomplete="off" aria-describedby="fid-hint" ${err.fidelity ? 'aria-invalid="true"' : ''}><span class="affix">%</span></div>
-              ${fieldError(err.fidelity)}<p class="field-hint" id="fid-hint">Share of requested properties visible in the render</p></div>
+              ${fieldError(err.fidelity)}</div>
             <div class="field"><label class="field-label" for="up-quality">Quality</label>
+              <p class="field-hint" id="q-hint">Score from your local quality check</p>
               <div class="input-affix short"><input class="input ${err.quality ? 'is-invalid' : ''}" id="up-quality" data-bind="upload.quality" value="${esc(u.quality)}" inputmode="decimal" placeholder="e.g. 4.2" autocomplete="off" aria-describedby="q-hint" ${err.quality ? 'aria-invalid="true"' : ''}><span class="affix">/ 5</span></div>
-              ${fieldError(err.quality)}<p class="field-hint" id="q-hint">Score from your local quality check</p></div>
+              ${fieldError(err.quality)}</div>
           </div>
           <div class="field-row">
-            <div class="field"><label class="field-label" for="up-runs-at-level">Runs at level</label>
-              <input class="input ${err.runsAtLevel ? 'is-invalid' : ''}" id="up-runs-at-level" data-bind="upload.runsAtLevel" value="${esc(u.runsAtLevel)}" placeholder="${esc(runsAtLevel(u))}" inputmode="numeric" autocomplete="off" aria-describedby="ral-hint" ${err.runsAtLevel ? 'aria-invalid="true"' : ''}>
-              ${fieldError(err.runsAtLevel)}<p class="field-hint" id="ral-hint">Leave blank to count it automatically</p></div>
-            <div class="field"><label class="field-label" for="up-uploaded">Uploaded</label>
-              <input class="input ${err.uploaded ? 'is-invalid' : ''}" type="date" id="up-uploaded" data-bind="upload.uploaded" value="${esc(u.uploaded)}" max="${todayIso()}" aria-describedby="upl-hint" ${err.uploaded ? 'aria-invalid="true"' : ''}>
-              ${fieldError(err.uploaded)}<p class="field-hint" id="upl-hint">Set to today. Change it if the run happened earlier</p></div>
+            <div class="field"><div class="label-row"><label class="field-label" for="up-runs-at-level">Runs at level</label><span class="tag tag-grey tag-strong">Auto-filled</span></div>
+              <input class="input ${err.runsAtLevel ? 'is-invalid' : ''}" id="up-runs-at-level" data-bind="upload.runsAtLevel" value="${esc(u.runsAtLevel !== null ? u.runsAtLevel : (u.skills.length ? runsAtLevel(u) : ''))}" placeholder="${u.skills.length ? '' : 'Fills in once you pick a skill'}" inputmode="numeric" autocomplete="off" ${err.runsAtLevel ? 'aria-invalid="true"' : ''}>
+              ${fieldError(err.runsAtLevel)}</div>
+            <div class="field"><div class="label-row"><label class="field-label" for="up-uploaded">Uploaded</label><span class="tag tag-grey tag-strong">Auto-filled</span></div>
+              <div class="date-field ${err.uploaded ? 'is-invalid' : ''}" data-action="open-date">${ic('calendar', 16)}<span class="date-text" id="up-uploaded-text">${esc(uploadedText(u))}</span>
+                <input class="date-native" type="date" id="up-uploaded" data-bind="upload.uploaded" value="${esc(u.uploaded)}" max="${todayIso()}" ${err.uploaded ? 'aria-invalid="true"' : ''}></div>
+              ${fieldError(err.uploaded)}</div>
           </div>
-          <div class="auto-note" id="auto-note">${ic('info', 16)}<span>Runs at level and the upload date are filled in automatically. You can change them if needed.</span></div>
         </section>
         <div class="form-footer"><button type="submit" class="btn btn-primary">Review run</button></div>
       </div>
@@ -620,7 +625,7 @@
             <dt>Skill(s)</dt><dd class="tag-row">${u.skills.map(s => tag(s, 'grey')).join('')}</dd><dd></dd>
             <dt>Level</dt><dd>${levelTag(u.level)}</dd><dd></dd>
             <dt>Token cost</dt><dd>${tokensLabel(u)} tokens</dd><dd></dd>
-            <dt>Runs at level</dt><dd>${esc(runsAtLevelValue(u))}</dd><dd class="auto">${u.runsAtLevel.trim() ? 'Edited' : 'Automatic'}</dd>
+            <dt>Runs at level</dt><dd>${esc(runsAtLevelValue(u))}</dd><dd class="auto">${runsAtLevelEdited(u) ? 'Edited' : 'Automatic'}</dd>
             <dt>Uploaded</dt><dd>${esc(uploadedLabel(u))}</dd><dd class="auto">${u.uploaded === todayIso() ? 'Automatic' : 'Edited'}</dd>
           </dl>
           <div class="divider"></div>
@@ -1047,6 +1052,11 @@
       }
       case 'up-level': u.level = val; u.touched.level = true; render(); break;
       case 'up-browse': $('#file-video').click(); break;
+      case 'open-date': {
+        const input = $('#up-uploaded');
+        if (input && e.target !== input && input.showPicker) { try { input.showPicker(); } catch (err) { input.focus(); } }
+        break;
+      }
       case 'up-complete': u.complete = val; u.touched.complete = true; render(); break;
       case 'up-editable': u.editable = val; u.touched.editable = true; render(); break;
       case 'up-cancel': {
@@ -1097,6 +1107,7 @@
       state[scope][key] = el.value;
       if (scope === 'upload' && state.upload.errors[key]) { delete state.upload.errors[key]; el.classList.remove('is-invalid'); }
       if (scope === 'upload') refreshRecorded();
+      if (el.id === 'up-uploaded') { const t = document.getElementById('up-uploaded-text'); if (t) t.textContent = uploadedText(state.upload); }
       if ('page' in state[scope] && key === 'q') state[scope].page = 1;
       if (el.dataset.bind === 'upload.skillQuery') state.openMenu = 'up-skills';
       if ('live' in el.dataset) render();
