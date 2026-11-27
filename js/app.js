@@ -106,6 +106,7 @@
   function syncPlayerDom(id) {
     const p = playerState(id);
     document.querySelectorAll(`[data-player="${id}"]`).forEach(el => {
+      if (el.classList.contains('video')) el.classList.toggle('is-playing', p.playing);
       const bar = el.querySelector('.progress span'); if (bar) bar.style.width = (p.elapsed / DURATION * 100) + '%';
       const time = el.querySelector('.time'); if (time) time.textContent = fmtTime(p.elapsed) + ' / ' + fmtTime(DURATION);
       el.querySelectorAll('[data-action="play"]').forEach(b => {
@@ -124,14 +125,19 @@
     const p = playerState(id);
     if (p.elapsed >= DURATION) p.elapsed = 0;
     p.playing = !p.playing; p.last = 0;
+    // Starting playback hides the overlay right away, even with the cursor still on the frame.
+    if (p.playing) document.querySelectorAll(`.video[data-player="${id}"]`).forEach(v => v.classList.remove('show-controls'));
     syncPlayerDom(id);
     if (p.playing) requestAnimationFrame(tickPlayers);
   }
   function videoBlock(id, filename, opts = {}) {
     const p = playerState(id);
-    return `<div class="video ${opts.cls || ''}" data-player="${id}">
-      <button type="button" class="play-btn" data-action="play" data-id="${id}" aria-label="${p.playing ? 'Pause' : 'Play'}">${ic(p.playing ? 'pause' : 'play', 18)}</button>
-      ${filename ? `<span class="filename">${esc(filename)}</span>` : ''}
+    // The whole frame toggles playback; the button stays as the keyboard control.
+    return `<div class="video ${p.playing ? 'is-playing' : ''} ${opts.cls || ''}" data-player="${id}" data-action="play" data-id="${id}">
+      <div class="video-overlay">
+        <button type="button" class="play-btn" data-action="play" data-id="${id}" aria-label="${p.playing ? 'Pause' : 'Play'}">${ic(p.playing ? 'pause' : 'play', 18)}</button>
+        ${filename ? `<span class="filename">${esc(filename)}</span>` : ''}
+      </div>
     </div>`;
   }
   function playerBar(id, dark) {
@@ -1168,6 +1174,19 @@
     if (!dz) return;
     e.preventDefault(); dz.classList.remove('is-drag');
     setVideo(e.dataTransfer.files[0]);
+  });
+
+  // While a video plays, moving the cursor over the frame brings the play/pause
+  // button back; it fades again after a moment without movement.
+  let hoverVideo = null, hoverTimer = null;
+  document.addEventListener('mousemove', e => {
+    const v = e.target.closest && e.target.closest('.video[data-player]');
+    if (hoverVideo && hoverVideo !== v) hoverVideo.classList.remove('show-controls');
+    hoverVideo = v;
+    clearTimeout(hoverTimer);
+    if (!v) return;
+    v.classList.add('show-controls');
+    hoverTimer = setTimeout(() => v.classList.remove('show-controls'), 2000);
   });
 
   window.addEventListener('hashchange', onRoute);
