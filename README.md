@@ -22,7 +22,7 @@ Opening `index.html` directly from disk also works. The only external request is
 | `#/overview` | 01 · Overview | Day/Week/Month/Year/All toggle, KPI cards, 10 most recent runs. Each row opens the run detail. |
 | `#/runs` | 01b · All runs | Search, Skill/Level/Quality/Date filters, sort, pagination, Export CSV of the filtered rows. |
 | `#/runs/:id` | 01c · Run detail | Run modal with a placeholder player, prompt, benchmark results and "Open in archive". |
-| `#/upload` | 02, 02b, 03 | Two steps. **Enter run**: run details (multi-select skills with add-new, level, token cost, prompt, drag-and-drop video) and benchmark results from local testing (Complete, Editable, Fidelity %, Quality / 5). **Review & upload**: run info and the four results as cards, then upload. |
+| `#/upload` | 02, 02b, 03, 04b, 05, 05b | Four steps. **Enter run**: run details (skills with add-new, level, token cost, prompt, drag-and-drop video) and benchmark results from local testing (Complete, Editable, Fidelity %, Quality / 5). **Review & upload**: run info and results as cards; Upload run saves the run. **Quality check**: compare against the current best for that skill and level. **Feedback**: what you liked and what to change, plus an optional suggested prompt you can edit and copy. |
 | `#/skills` | 06b, 06d | Skills table with descriptions, **Edit skills** (rename, remove with undo, add, save, cancel). |
 | `#/archive` | 07 to 07g | Video grid, multi-skill filter with search, level filter with "Best runs only", tag tooltips, hover state, preview modal, delete with confirmation. |
 | `#/deleted` | 08 · Recently deleted | Days-left countdown (red at 3 days or fewer), restore, delete forever, delete all. |
@@ -30,7 +30,7 @@ Opening `index.html` directly from disk also works. The only external request is
 ### Behavior worth knowing
 
 - **Benchmark results are entered by hand** from local testing. Skill(s), Fidelity (0–100) and Quality (0–5) are required; the form flags anything missing or out of range. Runs at level and the upload date fill in automatically.
-- **Uploading a run** adds it to Overview, All runs and the archive with the values you entered. New runs are not tagged **Best**; the design no longer has a step for choosing one.
+- **Uploading a run** adds it to Overview, All runs and the archive. If that skill and level already has a best run, Quality check asks which is better and moves the **Best** tag accordingly. If not, the new run becomes Best and the flow goes straight to Feedback. Cancel after uploading keeps the run and skips the feedback.
 - **Removing a skill** moves runs tagged *only* with that skill to Recently deleted. This matches the warning in the Figma file. **Renaming a skill** updates every run that uses it.
 - **Escape** closes menus and dialogs. Focus stays inside open dialogs, and every control works from the keyboard.
 
@@ -38,6 +38,7 @@ Opening `index.html` directly from disk also works. The only external request is
 
 - **Benchmark numbers** keep the Figma placeholders: `xx`, `xx%`, `x.x / 5`, `xxK`, `$x.xx`. They mark where real results will appear.
 - **Skill names, file names, levels and dates** mirror the Figma screens. Prompts and feedback beyond the lower-third example are sample text.
+- **The suggested prompt** on the Feedback step is fixed sample text from the Figma file; nothing generates it.
 - **Videos are gray placeholders.** Play animates the progress bar over the 6-second duration. Download shows a notice.
 - **State lives in memory** and resets on reload.
 

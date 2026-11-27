@@ -113,6 +113,16 @@
   window.ASPECT_DATA = {
     skills,
     runs,
-    levels: ['Single', 'Combined', 'Storyboard']
+    levels: ['Single', 'Combined', 'Storyboard'],
+    defaultPrompt: LOWER_THIRD_PROMPT,
+    // Sample content for the Feedback step (Figma 05 / 05b). The suggested
+    // prompt is a fixed example; there is no backend generating it.
+    feedbackExample: {
+      liked: 'The slide-in easing feels natural and the type hierarchy is clear. Bar color matches the brand.',
+      change: 'It cuts out instead of fading. The title text is a bit small, and the bar should extend past the name.'
+    },
+    improvedPrompt:
+      'Create a 6-second lower-third for a speaker named Maya Chen, Head of Design. Slide in from the left with an ease-out on a brand-blue bar that extends 24px past the longest line. Hold for 4 seconds, then fade out over 0.5 seconds (no hard cut). Use Instrument Sans, white text, title at 70% of the name size.',
+    promptChanges: ['+ 0.5s fade-out', '+ Ease-out on entry', '+ Bar extends past text', '+ Title size ratio']
   };
 })();

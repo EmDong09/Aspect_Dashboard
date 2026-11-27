@@ -12,7 +12,8 @@
   function freshUpload() {
     return {
       step: 1, skills: [], skillQuery: '', level: 'Single', tokens: '', prompt: '', video: null,
-      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', errors: {}
+      complete: 'Pass', editable: 'Yes', fidelity: '', quality: '', errors: {},
+      runId: null, compareId: null, liked: '', change: '', suggested: false, editingPrompt: false, improved: D.improvedPrompt
     };
   }
 
@@ -417,10 +418,12 @@
   }
 
   /* ---------------------------------------------------------- upload flow */
-  // Two steps, matching Figma: 02 · Upload test run (Enter run) and
-  // 03 · Review & upload. Benchmark results come from local testing.
+  // Figma V2: 02 Enter run, 03 Review & upload, 04b Quality check (compare to
+  // best) and 05/05b Feedback. Benchmark results come from local testing.
+  // "Upload run" saves the run; the compare step only appears when that skill
+  // and level already has a best run, otherwise the new run becomes best.
 
-  const STEPS = ['Enter run', 'Review & upload'];
+  const STEPS = ['Enter run', 'Review & upload', 'Quality check', 'Feedback'];
   function stepper(step) {
     return `<ol class="stepper" aria-label="Upload progress" style="list-style:none;margin:0;padding:0">${STEPS.map((label, i) => {
       const n = i + 1;
@@ -428,7 +431,7 @@
       const dot = n < step ? ic('check', 14) : n;
       const inner = `<span class="step-dot">${dot}</span><span class="step-label">${label}</span>`;
       return (i ? `<li aria-hidden="true" style="display:contents"><span class="step-line ${n <= step ? 'is-done' : ''}"></span></li>` : '') +
-        `<li style="display:contents">${n < step
+        `<li style="display:contents">${n < step && step <= 2
           ? `<button type="button" class="step ${cls}" data-action="up-goto" data-value="${n}" aria-label="Back to step ${n}: ${label}">${inner}</button>`
           : `<span class="step ${cls}" ${n === step ? 'aria-current="step"' : ''}>${inner}</span>`}</li>`;
     }).join('')}</ol>`;
@@ -466,7 +469,7 @@
 
   function viewUpload() {
     const u = state.upload;
-    return u.step === 2 ? uploadReview(u) : uploadEnter(u);
+    return [null, uploadEnter, uploadReview, uploadCompare, uploadFeedback][u.step](u);
   }
 
   function segmented(label, id, action, options, current) {
@@ -599,10 +602,59 @@
         </div>
         <div class="actions-right">
           <button type="button" class="btn btn-secondary" data-action="up-goto" data-value="1">Back to edit</button>
-          <button type="button" class="btn btn-primary" data-action="up-save">Upload run</button>
+          <button type="button" class="btn btn-primary" data-action="up-upload">Upload run</button>
         </div>
       </div></div>`;
   }
+
+  function uploadCompare(u) {
+    const run = findRun(u.runId);
+    const target = findRun(u.compareId);
+    return uploadHeader('Quality check') + `
+      <h2 class="question">Is the new run better than your current best?</h2>
+      <p class="note">${ic('info', 16)} Your pick sets the best version for this skill and level. Each comparison also helps refine the quality rubric, so future runs are scored more like your team would score them.</p>
+      <div class="compare-grid">
+        <section class="card compare-card" aria-label="Current best">
+          <div class="compare-head">${tag('Current best', 'green')}<span class="name">${esc(target.file)}</span><span class="meta">v${target.version} · ${esc(target.quality)} · ${esc(target.tokens)} tokens</span></div>
+          ${videoBlock('cmp-best', '')}${playerBar('cmp-best')}
+          <button type="button" class="btn btn-primary btn-block" data-action="up-pick" data-value="best">Keep current best</button>
+        </section>
+        <section class="card compare-card" aria-label="New run">
+          <div class="compare-head">${tag('New run', 'brand')}<span class="name">${esc(run.file)}</span><span class="meta">v${run.version} · ${esc(run.quality)} · ${esc(run.tokens)} tokens</span></div>
+          ${videoBlock('cmp-new', '')}${playerBar('cmp-new')}
+          <button type="button" class="btn btn-primary btn-block" data-action="up-pick" data-value="new">New run is better</button>
+        </section>
+      </div>`;
+  }
+
+  function uploadFeedback(u) {
+    const run = findRun(u.runId);
+    const original = (run && run.prompt) || D.defaultPrompt;
+    return uploadHeader('Feedback') + `
+      <section class="card feedback-card" aria-labelledby="fb-title">
+        <h2 class="card-title" id="fb-title">Your feedback</h2>
+        <div class="field"><label class="field-label" for="up-liked">What do you like about this run?</label>
+          <textarea class="textarea sm" id="up-liked" data-bind="upload.liked" placeholder="e.g. ${esc(D.feedbackExample.liked)}">${esc(u.liked)}</textarea></div>
+        <div class="field"><label class="field-label" for="up-change">What don't you like, or what should change?</label>
+          <textarea class="textarea sm" id="up-change" data-bind="upload.change" placeholder="e.g. ${esc(D.feedbackExample.change)}">${esc(u.change)}</textarea></div>
+        <div class="actions-right">
+          <button type="button" class="btn btn-secondary" data-action="up-suggest" ${u.suggested ? 'aria-pressed="true"' : ''}>Suggest prompt (optional)</button>
+          <button type="button" class="btn btn-primary" data-action="up-save">Save run</button></div>
+      </section>
+      ${u.suggested ? `<section class="card feedback-card" aria-labelledby="sp-title" id="suggested">
+        <div class="suggest-head"><span class="suggest-icon">${ic('sparkle', 16)}</span><h2 class="card-title" id="sp-title">Suggested prompt</h2>${tag('Optional', 'grey')}</div>
+        <div class="field"><p class="label-xs">Original</p><div class="prompt-original">${esc(original)}</div></div>
+        <div class="field"><label class="label-xs brand" for="up-improved">Improved</label>
+          ${u.editingPrompt
+            ? `<textarea class="prompt-improved" id="up-improved" data-bind="upload.improved">${esc(u.improved)}</textarea>`
+            : `<div class="prompt-improved" id="up-improved">${esc(u.improved)}</div>`}</div>
+        <div class="field"><p class="label-xs">What changed</p><div class="tag-row">${D.promptChanges.map(t => tag(t, 'brand')).join('')}</div></div>
+        <div class="actions-right">
+          <button type="button" class="btn btn-secondary" data-action="up-edit-prompt">${u.editingPrompt ? 'Done editing' : 'Edit prompt'}</button>
+          <button type="button" class="btn btn-primary" data-action="up-copy-prompt">Copy prompt</button></div>
+      </section>` : ''}`;
+  }
+
 
   /* --------------------------------------------------------------- modals */
 
@@ -800,7 +852,9 @@
     u.step = 2; render(); window.scrollTo(0, 0);
   }
 
-  function saveUploadedRun() {
+  const sameSkillSet = (a, b) => a.slice().sort().join('|') === b.slice().sort().join('|');
+
+  function uploadRun() {
     const u = state.upload;
     const v = nextVersion(u);
     const run = {
@@ -809,14 +863,33 @@
       tokens: tokensLabel(u), cost: '$x.xx', duration: '0:06', date: todayIso(), time: nowTime(), prompt: u.prompt,
       liked: '', change: '', deleted: false, daysLeft: null
     };
+    const target = activeRuns().find(r => r.best && r.level === run.level && sameSkillSet(r.skills, run.skills));
     state.runs.unshift(run);
     run.skills.forEach(name => {
       const s = state.skills.find(x => x.name === name);
       if (s) { s.last = 'just now'; if (!s.levels.includes(u.level)) s.levels.push(u.level); }
     });
+    u.runId = run.id;
+    if (target) { u.compareId = target.id; u.step = 3; toast('Run uploaded'); }
+    else { run.best = true; u.step = 4; toast('Run uploaded and set as best: it\'s the first run at this level'); }
+    render(); window.scrollTo(0, 0);
+  }
+
+  function pickBest(choice) {
+    const u = state.upload;
+    const run = findRun(u.runId);
+    const target = findRun(u.compareId);
+    if (choice === 'new') { run.best = true; if (target) target.best = false; }
+    u.step = 4; render(); window.scrollTo(0, 0);
+  }
+
+  function finishUpload(saveFeedback) {
+    const u = state.upload;
+    const run = findRun(u.runId);
+    if (run && saveFeedback) { run.liked = u.liked.trim(); run.change = u.change.trim(); }
     state.upload = freshUpload();
     go('#/overview');
-    toast('Run uploaded', { label: 'View', fn: () => go('#/overview/' + run.id) });
+    if (run) toast(saveFeedback ? 'Run saved' : 'Run uploaded without feedback', { label: 'View', fn: () => go('#/overview/' + run.id) });
   }
 
   function handleAction(el, e) {
@@ -925,6 +998,7 @@
       case 'up-complete': u.complete = val; render(); break;
       case 'up-editable': u.editable = val; render(); break;
       case 'up-cancel': {
+        if (u.runId) { finishUpload(false); break; } // the run is already uploaded
         const dirty = u.step > 1 || u.skills.length || u.prompt || u.video || u.tokens || u.fidelity || u.quality;
         const reset = () => { state.upload = freshUpload(); state.confirm = null; go('#/overview'); };
         if (!dirty) reset();
@@ -932,7 +1006,20 @@
         break;
       }
       case 'up-goto': u.step = Number(val); render(); window.scrollTo(0, 0); break;
-      case 'up-save': saveUploadedRun(); break;
+      case 'up-upload': uploadRun(); break;
+      case 'up-pick': pickBest(val); break;
+      case 'up-suggest':
+        u.suggested = true; render();
+        { const sec = $('#suggested'); sec && sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        break;
+      case 'up-edit-prompt': u.editingPrompt = !u.editingPrompt; render(); if (u.editingPrompt) $('#up-improved').focus(); break;
+      case 'up-copy-prompt': {
+        const fail = () => toast('Could not copy. Select the text and copy it instead.');
+        if (navigator.clipboard) navigator.clipboard.writeText(u.improved).then(() => toast('Improved prompt copied'), fail);
+        else fail();
+        break;
+      }
+      case 'up-save': finishUpload(true); break;
       default: break;
     }
   }

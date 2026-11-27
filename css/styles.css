@@ -488,6 +488,27 @@ button.play-btn:hover { transform: scale(1.06); }
 .stars .icon { color: var(--brand-primary); }
 .stars .icon-starOutline { color: var(--border-strong); }
 .actions-right { display: flex; justify-content: flex-end; gap: 10px; }
+.textarea.sm { min-height: 80px; }
+
+/* quality check: compare to best */
+.question { font-size: 20px; font-weight: 600; }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.compare-card { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
+.compare-head { display: flex; align-items: center; gap: 10px; }
+.compare-head .name { font-size: 14px; font-weight: 600; }
+.compare-head .meta { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
+
+/* feedback */
+.feedback-card { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+.suggest-head { display: flex; align-items: center; gap: 10px; }
+.suggest-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-primary); display: inline-flex; align-items: center; justify-content: center; }
+.label-xs.brand { color: var(--brand-primary); }
+.prompt-improved {
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--brand-primary); background: var(--brand-soft);
+  font-size: 13px; line-height: 1.5; width: 100%; color: var(--text-primary);
+}
+textarea.prompt-improved { resize: vertical; min-height: 84px; outline: 0; }
+.prompt-original { padding: 12px; border-radius: 10px; background: var(--bg-subtle); color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 
 /* skills */
 .skills-table td { height: 43px; }
@@ -596,7 +617,7 @@ button.play-btn:hover { transform: scale(1.06); }
   .page-header { flex-wrap: wrap; }
   .page-title { font-size: 24px; }
   .kpis { grid-template-columns: 1fr; }
-  .field-row, .bench-cards { grid-template-columns: 1fr; }
+  .field-row, .bench-cards, .compare-grid { grid-template-columns: 1fr; }
   .search { width: 100%; }
   .header-actions { flex-wrap: wrap; width: 100%; }
   .table-footer { flex-wrap: wrap; }
