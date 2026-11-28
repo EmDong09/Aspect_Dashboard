@@ -562,11 +562,15 @@ textarea.prompt-improved { resize: vertical; min-height: 84px; outline: 0; }
 .modal-root[hidden] { display: none; }
 .scrim {
   position: fixed; inset: 0; z-index: 50; background: var(--scrim); display: flex; align-items: center; justify-content: center;
-  padding: 24px; animation: fade-in .15s ease-out;
+  padding: 24px; animation: scrim-in .18s ease-out;
 }
 .scrim.inner { position: absolute; border-radius: 20px; z-index: 5; padding: 16px; background: rgba(10, 13, 59, 0.35); }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+/* Only the dim backdrop fades. Dialogs stay fully opaque while they move in,
+   so nothing behind them shows through mid-animation. */
+@keyframes scrim-in { from { background-color: transparent; } }
+@keyframes pop-in { from { transform: translateY(8px) scale(.98); } to { transform: none; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .modal {
   position: relative; display: flex; width: 1040px; max-width: 100%; max-height: calc(100vh - 48px);
   background: #fff; border-radius: 20px; box-shadow: var(--shadow-modal); overflow: hidden; animation: pop-in .18s ease-out;
@@ -615,7 +619,7 @@ textarea.prompt-improved { resize: vertical; min-height: 84px; outline: 0; }
 .toast {
   display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 16px; border-radius: 12px;
   background: var(--bg-sidebar); color: #fff; font-size: 15px; font-weight: 500; box-shadow: var(--shadow-tip);
-  pointer-events: auto; animation: pop-in .18s ease-out;
+  pointer-events: auto; animation: toast-in .18s ease-out;
 }
 .toast button { color: #a9abff; font-weight: 600; }
 
