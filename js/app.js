@@ -808,25 +808,48 @@
     renderModal();
   }
 
+  // The run modal and the confirm dialog live in separate layers so opening
+  // or cancelling a confirmation doesn't rebuild (and re-animate) the modal.
+  let lastFocusBeforeConfirm = null;
+  function layer(root, name) {
+    let el = root.querySelector(`:scope > [data-layer="${name}"]`);
+    if (!el) { el = document.createElement('div'); el.dataset.layer = name; if (name === 'run') root.prepend(el); else root.appendChild(el); }
+    return el;
+  }
   function renderModal() {
     const root = $('#modal-root');
     const { page, id } = state.route;
     const run = id && findRun(id);
-    let html = '';
-    if (run && !(page === 'archive' && run.deleted)) html += runModal(run, page === 'archive' ? 'archive' : 'run');
-    if (state.confirm) html += confirmDialog(state.confirm);
+    const showRun = !!(run && !(page === 'archive' && run.deleted));
     const wasOpen = !root.hidden;
-    const prevKey = root.dataset.key || '';
-    const key = (run ? run.id : '') + '|' + (state.confirm ? 'c' : '');
-    if (!html) {
-      if (wasOpen) { root.hidden = true; root.innerHTML = ''; root.dataset.key = ''; document.body.style.overflow = ''; if (lastFocusBeforeModal && document.contains(lastFocusBeforeModal)) lastFocusBeforeModal.focus(); lastFocusBeforeModal = null; }
+    if (!showRun && !state.confirm) {
+      if (wasOpen) {
+        root.hidden = true; root.innerHTML = ''; document.body.style.overflow = '';
+        if (lastFocusBeforeModal && document.contains(lastFocusBeforeModal)) lastFocusBeforeModal.focus();
+        lastFocusBeforeModal = null; lastFocusBeforeConfirm = null;
+      }
       return;
     }
     if (!wasOpen) lastFocusBeforeModal = document.activeElement;
-    if (prevKey !== key || !wasOpen) {
-      root.innerHTML = html; root.hidden = false; root.dataset.key = key; document.body.style.overflow = 'hidden';
-      const target = state.confirm ? $('#confirm [data-action="confirm-cancel"]') : $('#modal');
-      if (target) target.focus();
+    root.hidden = false; document.body.style.overflow = 'hidden';
+
+    const runLayer = layer(root, 'run');
+    const runKey = showRun ? run.id + '|' + page : '';
+    if (runLayer.dataset.key !== runKey) {
+      runLayer.innerHTML = showRun ? runModal(run, page === 'archive' ? 'archive' : 'run') : '';
+      runLayer.dataset.key = runKey;
+      if (showRun && !state.confirm) { const m = $('#modal'); m && m.focus(); }
+    }
+
+    const confirmLayer = layer(root, 'confirm');
+    const confirmKey = state.confirm ? state.confirm.title + '|' + state.confirm.ok : '';
+    if (confirmLayer.dataset.key !== confirmKey) {
+      const opening = !!state.confirm && !confirmLayer.dataset.key;
+      if (opening) lastFocusBeforeConfirm = document.activeElement;
+      confirmLayer.innerHTML = state.confirm ? confirmDialog(state.confirm) : '';
+      confirmLayer.dataset.key = confirmKey;
+      if (state.confirm) { const b = $('#confirm [data-action="confirm-cancel"]'); b && b.focus(); }
+      else if (lastFocusBeforeConfirm && document.contains(lastFocusBeforeConfirm)) { lastFocusBeforeConfirm.focus(); lastFocusBeforeConfirm = null; }
     }
   }
 
